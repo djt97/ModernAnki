@@ -1,0 +1,2357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Modern Editor</title>
+<script src="keys.js" defer></script>
+<script src="styles.js" defer></script>
+<style>
+/* ───── Basics ───── */
+:root {
+  --font-serif: 'Georgia', 'Times New Roman', serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --bg-color: #fffff8;
+  --text-color: #1a1a1a;
+  --border-color: #d4d4d4;
+  --highlight-inactive: rgba(255, 229, 153, 0.7); /* Soft Yellow */
+  --highlight-active: rgba(255, 204, 203, 1);
+  --suggestion-red: #d14;
+  --suggestion-green: #22863a;
+  --user-highlight: rgba(100, 149, 237, 0.3); /* Soft blue for user selection */
+  --rule-style: #059669;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-serif);
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  line-height: 1.7;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* ───── Header ───── */
+.header {
+  position: fixed;
+  top: 2rem;
+  left: 0;
+  z-index: 100;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: auto;
+}
+
+.hamburger-btn,
+.icon-btn,
+.nav-btn {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  transition: all 0.2s;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  padding: 6px;
+  font-size: 1.5rem;
+}
+
+.hamburger-btn:hover, .icon-btn:hover, 
+.nav-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 1);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.icon-btn svg {
+  stroke: currentColor;
+}
+
+.nav-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Correction controls */
+.correction-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color);
+}
+
+.nav-info {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 4px 8px;
+  text-align: center;
+  font-size: 0.85rem;
+  font-family: var(--font-sans);
+  color: #666;
+  font-weight: 500;
+}
+
+/* Selection actions */
+.selection-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color);
+}
+
+.selection-btn {
+  padding: 8px 12px;
+  background: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.85rem;
+  font-family: var(--font-sans);
+  white-space: nowrap;
+}
+
+.selection-btn:hover {
+  background: #1d4ed8;
+}
+
+.selection-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+/* Main content with left margin */
+.main-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 2rem;
+  padding-left: 85px; /* Space for the sidebar */
+  position: relative;
+}
+
+/* Responsive: ensure content doesn't overlap on narrow viewports */
+@media (max-width: 600px) {
+  .main-content {
+    padding-left: 80px;
+  }
+  
+  .header {
+    padding: 8px;
+  }
+  
+  .hamburger-btn,
+  .icon-btn,
+  .nav-btn {
+    width: 36px;
+    height: 36px;
+  }
+}
+
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Hamburger Menu */
+.hamburger-menu {
+  position: fixed;
+  top: 0;
+  left: -300px;
+  width: 300px;
+  height: 100vh;
+  background: var(--bg-color);
+  border-right: 1px solid var(--border-color);
+  z-index: 1000;
+  transition: left 0.3s ease;
+  overflow-y: auto;
+}
+
+.hamburger-menu.open {
+  left: 0;
+}
+
+.analysis-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color);
+}
+
+.nav-arrow-group {
+    display: flex;
+    gap: 8px;
+}
+
+/* Styles the smaller arrow buttons within the new layout */
+.nav-arrow-group .nav-btn {
+    flex: 1; /* Makes both buttons share the width equally */
+    width: auto; /* Overrides the default fixed width */
+    height: 36px; /* Makes the buttons shorter */
+    padding: 0;
+    font-size: 1.2rem;
+}
+
+
+.menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.3);
+  z-index: 999;
+  display: none;
+}
+
+.menu-overlay.visible {
+  display: block;
+}
+
+
+.menu-style-select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 0.85rem;
+  margin-top: 8px;
+  background: white;
+}
+
+.menu-header {
+  padding: 20px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.menu-header h2 {
+  font-size: 1.2rem;
+  font-weight: 500;
+}
+
+.menu-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.menu-content {
+  padding: 20px;
+}
+
+.menu-item {
+  width: 100%;
+  padding: 12px 16px;
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  text-align: left;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+
+.menu-item:hover {
+  background: #f0f0f0;
+}
+
+.menu-divider {
+  margin: 20px 0;
+  border: none;
+  border-top: 1px solid var(--border-color);
+}
+
+.menu-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.menu-toggle input {
+  cursor: pointer;
+}
+
+.menu-select-group {
+  margin-top: 16px;
+  padding: 0 16px;
+}
+
+.menu-select-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.menu-select-group select {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.analyze-btn {
+  padding: 8px 12px;
+  background: #333;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.85rem;
+  font-family: var(--font-sans);
+  white-space: nowrap;
+  width: 100%; /* Make them fill the sidebar width */
+}
+
+.analyze-btn:hover {
+  background: #111;
+}
+
+.correction-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color);
+}
+
+.correction-actions .popover-btn {
+  width: 100%;
+  padding: 8px; /* Give them more vertical space */
+}
+
+.control-label {
+    font-size: 0.8rem;
+    color: #666;
+    font-family: var(--font-sans);
+}
+
+.api-key-input {
+  padding: 5px 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-family: var(--font-sans);
+  background: white;
+  color: var(--text-color);
+  -webkit-appearance: none;
+  appearance: none;
+  background-position: right 0.5rem center;
+  background-repeat: no-repeat;
+  background-size: 1.25em;
+  padding-right: 2rem;
+  width: 200px;
+  background-image: none;
+}
+
+
+/* ───── Main Content Layout ───── */
+.editor-wrapper {
+  max-width: 80ch;
+  margin: 0 auto;
+  position: relative;
+}
+
+/* ───── Editor & Highlight Overlay ───── */
+.editor-textarea, .highlight-overlay {
+  width: 100%;
+  min-height: 50vh;
+  padding: 1rem;
+  font-family: var(--font-serif);
+  font-size: 18px;
+  line-height: 1.7;
+  border: 1px solid transparent;
+  background: transparent;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  color: var(--text-color);
+}
+
+.editor-textarea {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  resize: none;
+  outline: none;
+  z-index: 2;
+  color: rgba(26, 26, 26, 0.7);
+  overflow: hidden;
+}
+
+.highlight-overlay {
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* ───── Suggestion Highlighting ───── */
+.suggestion {
+  background-color: var(--highlight-inactive);
+  border-radius: 3px;
+  cursor: pointer;
+  pointer-events: all;
+  transition: background-color 0.3s;
+  scroll-margin-bottom: 110px; 
+}
+
+.suggestion.active {
+  background-color: var(--highlight-active);
+}
+
+/* ───── User Selection Highlighting ───── */
+.user-selection {
+  background-color: var(--user-highlight);
+  border-radius: 3px;
+  position: relative;
+}
+
+/* ───── Suggestion Popover ───── */
+.suggestion-popover {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  background: rgba(255, 255, 248, 0.98);
+  border-top: 2px solid #ccc;
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  box-shadow: 0 -5px 20px rgba(0,0,0,0.1);
+  padding: 16px 20px; 
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  transform: translateY(100%);
+  transition: transform 0.3s ease;
+}
+
+.suggestion-popover.visible {
+  transform: translateY(0);
+}
+
+
+.selection-disabled-hint {
+  color: var(--suggestion-red);
+  font-style: italic;
+  font-size: 0.8rem;
+  margin: 0 auto; /* Center it a bit */
+  display: none; /* Hidden by default */
+}
+
+.popover-counter {
+  position: absolute;
+  top: 10px;
+  right: 20px;
+  font-size: 0.85rem;
+  color: #666;
+  font-weight: 500;
+}
+
+.popover-diff {
+  font-size: 1rem;
+  line-height: 1.6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.popover-actions {
+  margin-top: 16px;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  max-width: 400px;
+  margin: 16px auto 0;
+}
+
+.popover-explanation {
+  font-style: italic;
+  color: #555;
+  margin-bottom: 16px;
+  text-align: center;
+  max-width: 800px;
+  margin: 0 auto 16px;
+}
+
+.popover-diff del {
+  color: var(--suggestion-red);
+  text-decoration: none;
+  background-color: #ffebe9;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.popover-diff ins {
+  color: var(--suggestion-green);
+  text-decoration: none;
+  background-color: #e6ffed;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.popover-btn {
+  padding: 4px 16px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  cursor: pointer;
+  background: white;
+  font-size: 0.8rem;
+  transition: all 0.2s;
+}
+
+.popover-btn.accept:hover {
+  background: #e6ffed;
+  border-color: var(--suggestion-green);
+  color: var(--suggestion-green);
+}
+.popover-btn.reject:hover {
+  background: #ffebe9;
+  border-color: var(--suggestion-red);
+  color: var(--suggestion-red);
+}
+
+/* ───── Summary Modal (used for proofs and simplifications) ───── */
+.summary-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 600px;
+  max-width: 90vw;
+  max-height: 80vh;
+  background: var(--bg-color);
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+  padding: 24px;
+  font-family: var(--font-sans);
+  overflow-y: auto;
+  z-index: 100;
+  display: none;
+}
+
+.summary-modal.visible {
+  display: block;
+}
+
+.summary-modal h2 {
+  font-size: 1.3rem;
+  margin-bottom: 16px;
+  font-weight: 500;
+}
+
+.summary-section {
+  margin-bottom: 20px;
+}
+
+.summary-section h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #444;
+  margin-bottom: 8px;
+}
+
+.summary-section p,
+.summary-section ul {
+  color: #666;
+  line-height: 1.6;
+}
+
+.summary-section ul {
+  margin-left: 20px;
+}
+
+.locked {
+  pointer-events: none;
+}
+
+.simplification-option {
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.simplification-option:hover {
+  background: #f8f8f8;
+  border-color: #999;
+}
+
+.simplification-label {
+  font-weight: 600;
+  color: #444;
+  margin-bottom: 4px;
+  font-size: 0.85rem;
+}
+
+.simplification-text {
+  color: #222;
+  line-height: 1.6;
+}
+
+.summary-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: none;
+  border: none;
+  font-size: 1.4rem;
+  cursor: pointer;
+  color: #666;
+  padding: 4px 8px;
+}
+
+.summary-close:hover {
+  color: #222;
+}
+
+.popover-diff ins[contenteditable="true"]:focus {
+  outline: 1px solid #888;
+  box-shadow: 0 0 3px rgba(0,0,0,0.1);
+  background-color: #fff; /* Make background solid white on focus for better editing */
+}
+
+/* ───── Modal Overlay ───── */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 99;
+  display: none;
+}
+
+.modal-overlay.visible {
+  display: block;
+}
+
+/* ───── Loading & Empty State ───── */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 248, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  font-family: var(--font-sans);
+}
+
+.loading-content { text-align: center; }
+.loading-spinner {
+  border: 2px solid #ccc;
+  border-top: 2px solid #333;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 16px;
+}
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+.loading-text { font-size: 0.9rem; color: #666; font-style: italic; }
+
+.empty-state {
+    text-align: center;
+    padding: 4rem 1rem;
+    color: #888;
+    font-family: var(--font-sans);
+}
+.empty-state h3 { font-weight: 500; font-size: 1.1rem; }
+.empty-state p { font-style: italic; margin-top: 0.5rem; }
+
+/* ───── About Modal ───── */
+.about-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 1200px;
+  max-width: 90vw;
+  background: var(--bg-color);
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+  padding: 32px;
+  font-family: var(--font-sans);
+  z-index: 100;
+  display: none;
+}
+
+.about-modal.visible {
+  display: block;
+}
+
+.about-modal h2 {
+  font-size: 1.4rem;
+  margin-bottom: 20px;
+  font-weight: 500;
+}
+
+.about-modal h3 {
+  font-size: 1.1rem;
+  margin-top: 20px;
+  margin-bottom: 10px;
+  font-weight: 600;
+  color: #444;
+}
+
+.about-modal p {
+  line-height: 1.6;
+  color: #666;
+  margin-bottom: 12px;
+}
+
+.about-modal ul {
+  margin-left: 20px;
+  color: #666;
+  line-height: 1.8;
+}
+
+.about-modal a {
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.about-modal a:hover {
+  text-decoration: underline;
+}
+
+/* ───── File Upload Modal ───── */
+.file-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 400px;
+  max-width: 90vw;
+  background: var(--bg-color);
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+  padding: 32px;
+  font-family: var(--font-sans);
+  z-index: 100;
+  display: none;
+}
+
+.file-modal.visible {
+  display: block;
+}
+
+.file-modal h2 {
+  font-size: 1.2rem;
+  margin-bottom: 20px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.drop-zone {
+  border: 2px dashed #ccc;
+  border-radius: 8px;
+  padding: 40px;
+  text-align: center;
+  transition: all 0.3s;
+  cursor: pointer;
+  background: #fafafa;
+}
+
+.drop-zone:hover {
+  border-color: #999;
+  background: #f5f5f5;
+}
+
+.drop-zone.dragging {
+  border-color: #2563eb;
+  background: #e0e7ff;
+}
+
+.drop-zone p {
+  color: #666;
+  margin-bottom: 16px;
+}
+
+.file-input {
+  display: none;
+}
+
+.file-btn {
+  padding: 8px 20px;
+  background: #333;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.file-btn:hover {
+  background: #111;
+}
+.api-key-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--bg-color);
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+  padding: 32px;
+  font-family: var(--font-sans);
+  z-index: 1001;
+  text-align: center;
+  max-width: 400px;
+  width: 90%;
+}
+
+.api-key-modal h2 {
+  font-size: 1.2rem;
+  margin-bottom: 12px;
+  font-weight: 500;
+}
+
+.api-key-modal p {
+  color: #666;
+  margin-bottom: 20px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.api-key-modal input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  margin-bottom: 16px;
+  font-family: monospace;
+}
+
+.api-key-modal button {
+  padding: 8px 24px;
+  background: #333;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.api-key-modal button:hover {
+  background: #111;
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <button class="hamburger-btn" id="hamburgerBtn">☰</button>
+  <button class="nav-btn icon-btn" id="copyBtn" title="Copy Text">
+    <svg class="icon-copy" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+    <svg class="icon-check" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="display: none;"><polyline points="20 6 9 17 4 12"></polyline></svg>
+  </button>
+  <button class="nav-btn icon-btn" id="downloadBtn" title="Download as .txt">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+  </button>
+
+  <!-- Wrapper for analysis buttons to add the line above -->
+  <div class="analysis-controls">
+    <button class="selection-btn analyze-btn" id="analyzeGrammarBtn">Grammar</button>
+    <button class="selection-btn analyze-btn" id="analyzeStyleBtn">Style</button>
+  </div>
+
+  <!-- Navigation controls (visible during corrections) -->
+  <div class="correction-controls" id="correctionControls" style="display: none;">
+    <div class="nav-info" id="navInfo">0 / 0</div>
+    <!-- Wrapper for side-by-side arrows -->
+    <div class="nav-arrow-group">
+        <button class="nav-btn" id="prevBtn">←</button>
+        <button class="nav-btn" id="nextBtn">→</button>
+        <button class="nav-btn" id="undoBtn" title="Undo Last Action (⎌)" style="display: none;">⎌</button>
+    </div>
+    <!-- Accept/Reject buttons are now correctly inside this container -->
+    <div class="correction-actions">
+        <button class="popover-btn reject" id="popoverRejectBtn">Reject</button>
+        <button class="popover-btn accept" id="popoverAcceptBtn">Accept</button>
+    </div>
+  </div>
+  
+  <!-- Selection actions (visible when text selected) -->
+  <div class="selection-actions" id="selectionActions" style="display: none;">
+    <button class="selection-btn" id="simplifyBtn">Simplify</button>
+    <button class="selection-btn" id="proofBtn">Check Proof</button>
+  </div>
+</div>
+
+<!-- Hamburger Menu -->
+<div class="hamburger-menu" id="hamburgerMenu">
+  <div class="menu-header">
+    <h2>Modern Editor</h2>
+    <button class="menu-close" id="menuClose">×</button>
+  </div>
+  <div class="menu-content">
+    <button class="menu-item" id="helpBtn" style="background-color:#000000; color:#FFFFFF;">Help</button>
+    <hr class="menu-divider">
+    <button class="menu-item" id="newDocBtn">Load New Document</button>
+    <hr class="menu-divider">
+    <div class="menu-select-group">
+    <select id="ruleSelect" style="display: none;">
+      <!-- Options will be populated from rules.js -->
+    </select>
+    <div class="menu-select-group">
+      <label for="languageSelect">Language:</label>
+      <select id="languageSelect">
+        <option value="en-US">English (US)</option>
+        <option value="en-CAN">English (CAN)</option>
+        <option value="en-UK">English (UK)</option>
+        <option value="fr">French</option>
+        <option value="es">Spanish</option>
+        <option value="de">German</option>
+      </select>
+    </div>
+    <div class="menu-select-group">
+      <label for="styleSelect">Style Rule:</label>
+      <select id="styleSelect" class="menu-style-select">
+        <!-- Options will be populated from rules.js -->
+      </select>
+    </div>
+    <label class="menu-toggle">
+      <input type="checkbox" id="freeModelsCheckbox">
+      <span>Use free LLM models only</span>
+    </label>
+    </div>
+  </div>
+</div>
+<div class="menu-overlay" id="menuOverlay"></div>
+
+<!-- Main Content -->
+<main class="main-content" id="mainContent">
+  <div class="editor-wrapper">
+    <div class="highlight-overlay" id="highlightOverlay"></div>
+    <textarea class="editor-textarea" id="documentInput" placeholder="Paste or write your document here..."></textarea>
+  </div>
+</main>
+
+
+<!-- Suggestion Popover -->
+<div class="suggestion-popover" id="suggestionPopover">
+  <div class="popover-explanation" id="popoverExplanation"></div>
+  <div class="popover-diff">
+    <del id="popoverOriginal"></del> 
+    → 
+    <ins id="popoverCorrected" contenteditable="true"></ins>
+  </div>
+</div>
+
+<!-- Simplification Modal -->
+<div class="modal-overlay" id="simplificationOverlay"></div>
+<div class="summary-modal" id="simplificationModal">
+  <button class="summary-close" id="simplificationModalClose">×</button>
+  <h2>Simplification Options</h2>
+  <div class="summary-section">
+    <h3>Original Text</h3>
+    <p id="simplificationOriginal" style="background: #f5f5f5; padding: 12px; border-radius: 4px; font-style: italic;"></p>
+  </div>
+  <div id="simplificationOptions"></div>
+</div>
+
+<!-- Loading overlay -->
+<div class="loading-overlay" id="loadingOverlay" style="display: none;">
+  <div class="loading-content">
+    <div class="loading-spinner"></div>
+    <div class="loading-text" id="loadingText">Analyzing...</div>
+  </div>
+</div>
+
+<!-- Summary Modal -->
+<div class="modal-overlay" id="modalOverlay"></div>
+<div class="summary-modal" id="summaryModal">
+  <button class="summary-close" id="summaryClose">×</button>
+  <h2>Document Summary</h2>
+  <div id="summaryContent"></div>
+</div>
+
+<!-- About Modal -->
+<div class="modal-overlay" id="aboutOverlay"></div>
+<div class="about-modal" id="aboutModal">
+  <button class="summary-close" id="aboutClose">×</button>
+  <strong>"Super Spell/Style/Grammar Check"</strong> (June 2025, updated July 2025)
+  <p>Created by <strong>Kevin Bryan</strong><br>
+  Associate Professor of Strategic Management, University of Toronto<br>
+  Co-founder, All Day TA</p>
+  
+  <p>
+    <a href="https://kevinbryanecon.com" target="_blank">kevinbryanecon.com</a> | 
+    <a href="https://alldayta.com" target="_blank">alldayta.com</a><br>
+    <a href="mailto:kevin.bryan@rotman.utoronto.ca">kevin.bryan@rotman.utoronto.ca</a><br>
+  </p>
+
+  <ul>
+    <li><strong>Spelling and Grammar:</strong> Context and LaTeX aware spelling and grammar check. You can set your language of choice.</li>
+    <li><strong>Style:</strong> Stylistic guidelines following specific rules. Some are preloaded (<i>Literary Nonfiction is my favorite</i>, but you can add your own if you download this package). Be VERY detailed about your style preferences!</li>
+    <li><strong>Simplify:</strong> Select a paragraph or two of text and a 'simplify' button will create three simplifications retaining technical content.</li>
+    <li><strong>Proof:</strong> (Beta) Select a theorem and proof, and the 'proof' button will attempt to analyze the logical and mathematical accuracy.</li>
+   
+  <h3>Keyboard Shortcuts</h3>
+  <ul>
+    <li><strong>←/→:</strong> Navigate between corrections</li>
+    <li><strong>Enter:</strong> Accept correction (you can also edit the green text before accepting, and undo if needed)</li>
+    <li><strong>Backspace/Delete:</strong> Reject correction</li>
+  </ul>
+  If you don't use 'free models', the quality is a bit better, and the cost is still just pennies.
+</div>
+
+<!-- File Upload Modal -->
+<div class="modal-overlay" id="fileOverlay"></div>
+<div class="file-modal" id="fileModal">
+  <button class="summary-close" id="fileClose">×</button>
+  <h2>Open File</h2>
+  <div class="drop-zone" id="dropZone">
+    <p>Drag and drop a .tex or .txt file here</p>
+    <p style="margin-bottom: 8px; font-size: 0.9rem;">or</p>
+    <button class="file-btn" id="fileSelectBtn">Choose File</button>
+    <input type="file" class="file-input" id="fileInput" accept=".tex,.txt">
+  </div>
+</div>
+
+<!-- API Key Modal -->
+<div class="api-key-modal" id="apiKeyModal" style="display: none;">
+  <h2>Gemini API Key Required</h2>
+  <p>Please enter your Gemini API key to use this editor. Your key is stored locally on your computer. You can get a free key at <p><a href="https://aistudio.google.com/app/apikey">https://aistudio.google.com/app/apikey</a></p><p> Best quality if you unclick 'use free models' (but may cost a few cents per document and you need Google billing). The free models are still very good. If you get an error, you probably have used up your daily limit of free tokens.</p><p>
+This editor is intended for .txt and .tex. After stylistic editing, copy or download edited version back to your normal editor using buttons on the bottom right.</p>
+  <input type="text" id="apiKeyInput" placeholder="Enter your Gemini API key">
+  <button id="apiKeySubmit">Continue</button>
+</div>
+
+<script>
+// State management
+let corrections = [];
+let currentIndex = -1;
+let undoStack = [];
+let apiKey = '';
+let selectedText = '';
+let selectedRange = null;
+let selectionMode = false;
+
+// DOM elements
+const undoBtn = document.getElementById('undoBtn');
+const documentInput = document.getElementById('documentInput');
+const highlightOverlay = document.getElementById('highlightOverlay');
+const mainContent = document.getElementById('mainContent');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const navInfo = document.getElementById('navInfo');
+const loadingOverlay = document.getElementById('loadingOverlay');
+const loadingText = document.getElementById('loadingText');
+const ruleSelect = document.getElementById('ruleSelect');
+const simplificationModal = document.getElementById('simplificationModal');
+const simplificationOriginal = document.getElementById('simplificationOriginal');
+const simplificationOptions = document.getElementById('simplificationOptions');
+const simplificationModalClose = document.getElementById('simplificationModalClose');
+const simplificationOverlay = document.getElementById('simplificationOverlay');
+const summaryModal = document.getElementById('summaryModal');
+const summaryContent = document.getElementById('summaryContent');
+const summaryClose = document.getElementById('summaryClose');
+const modalOverlay = document.getElementById('modalOverlay');
+const apiKeyModal = document.getElementById('apiKeyModal');
+const apiKeyInput = document.getElementById('apiKeyInput');
+const apiKeySubmit = document.getElementById('apiKeySubmit');
+const aboutModal = document.getElementById('aboutModal');
+const aboutClose = document.getElementById('aboutClose');
+const aboutOverlay = document.getElementById('aboutOverlay');
+const fileModal = document.getElementById('fileModal');
+const fileClose = document.getElementById('fileClose');
+const fileOverlay = document.getElementById('fileOverlay');
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const fileSelectBtn = document.getElementById('fileSelectBtn');
+const selectionActions = document.getElementById('selectionActions');
+const simplifyBtn = document.getElementById('simplifyBtn');
+const proofBtn = document.getElementById('proofBtn');
+const copyBtn = document.getElementById('copyBtn');
+const downloadBtn = document.getElementById('downloadBtn');
+const styleSelect = document.getElementById('styleSelect');
+const correctionControls = document.getElementById('correctionControls');
+
+// Hamburger elements
+const hamburgerBtn = document.getElementById('hamburgerBtn');
+const hamburgerMenu = document.getElementById('hamburgerMenu');
+const menuClose = document.getElementById('menuClose');
+const menuOverlay = document.getElementById('menuOverlay');
+const helpBtn = document.getElementById('helpBtn');
+const newDocBtn = document.getElementById('newDocBtn');
+const analyzeGrammarBtn = document.getElementById('analyzeGrammarBtn');
+const analyzeStyleBtn = document.getElementById('analyzeStyleBtn');
+
+
+// Popover elements
+const suggestionPopover = document.getElementById('suggestionPopover');
+const popoverExplanation = document.getElementById('popoverExplanation');
+const popoverOriginal = document.getElementById('popoverOriginal');
+const popoverCorrected = document.getElementById('popoverCorrected');
+const popoverAcceptBtn = document.getElementById('popoverAcceptBtn');
+const popoverRejectBtn = document.getElementById('popoverRejectBtn');
+
+// Hamburger menu events
+hamburgerBtn.addEventListener('click', openHamburgerMenu);
+menuClose.addEventListener('click', closeHamburgerMenu);
+menuOverlay.addEventListener('click', closeHamburgerMenu);
+
+styleSelect.addEventListener('change', () => {
+  // Update the hidden main selector if it's a style rule
+  const rule = window.WRITING_RULES[styleSelect.value];
+  if (rule && rule.type === 'style') {
+    ruleSelect.value = styleSelect.value;
+  }
+});
+
+helpBtn.addEventListener('click', () => {
+  closeHamburgerMenu();
+  showAboutModal();
+});
+
+undoBtn.addEventListener('click', handleUndo);
+
+newDocBtn.addEventListener('click', () => {
+  closeHamburgerMenu();
+  showFileModal();
+});
+
+analyzeGrammarBtn.addEventListener('click', () => {
+  closeHamburgerMenu();
+  ruleSelect.value = 'grammar';
+  handleAnalysis();
+});
+
+analyzeStyleBtn.addEventListener('click', () => {
+  closeHamburgerMenu();
+  const selectedStyle = styleSelect.value;
+  if (selectedStyle) {
+    ruleSelect.value = selectedStyle;
+    handleAnalysis();
+  }
+});
+
+function openHamburgerMenu() {
+  hamburgerMenu.classList.add('open');
+  menuOverlay.classList.add('visible');
+  
+  // If current rule is a style, update style selector
+  if (ruleSelect && ruleSelect.value && window.WRITING_RULES) {
+    const currentRule = window.WRITING_RULES[ruleSelect.value];
+    if (currentRule && currentRule.type === 'style' && styleSelect) {
+      styleSelect.value = ruleSelect.value;
+    }
+  }
+}
+
+function closeHamburgerMenu() {
+  hamburgerMenu.classList.remove('open');
+  menuOverlay.classList.remove('visible');
+}
+
+window.WRITING_RULES = {
+  // Basic grammar and spelling check
+  "grammar": {
+    name: "Grammar & Spelling",
+    description: "Check for grammatical errors and spelling mistakes",
+    type: "grammar"
+  },
+
+  // Model specifications for different operations
+  "models": {
+    "grammar": "gemini-2.5-flash-preview-05-20",
+    "style": "gemini-2.5-flash-preview-05-20", 
+    "simplify": "gemini-2.5-pro-preview-06-05",
+    "proof": "gemini-2.5-pro-preview-06-05"
+  },
+  "models_free": {
+    "grammar": "gemini-2.5-flash-preview-05-20",
+    "style": "gemini-2.5-flash-preview-05-20", 
+    "simplify": "gemini-2.5-flash-preview-05-20",
+    "proof": "gemini-2.5-flash-preview-05-20"
+  }
+};
+
+// Initial setup
+document.addEventListener('DOMContentLoaded', async () => {
+  // Check for API key
+  checkApiKey();
+  
+  loadRules();
+
+  freeModelsCheckbox.checked = JSON.parse(localStorage.getItem('useFreeModels') || 'false');
+  languageSelect.value       = localStorage.getItem('languagePref') || 'en-US';
+  styleSelect.value          = localStorage.getItem('stylePref')    || 'literary_nonfiction';
+
+  freeModelsCheckbox.addEventListener('change', () =>
+    localStorage.setItem('useFreeModels', freeModelsCheckbox.checked)
+  );
+  languageSelect.addEventListener('change', () =>
+    localStorage.setItem('languagePref', languageSelect.value)
+  );
+  styleSelect.addEventListener('change', () =>
+    localStorage.setItem('stylePref', styleSelect.value)
+  );
+  
+  documentInput.value = `\\documentclass{article}
+\\begin{document}
+
+\\title{Sample Text: Load Your Own by Pasting Here or Use New Text Above}
+\\author{John Smith}
+\\maketitle
+
+\\section{Introduction}
+This paper presents an comprehensive overview of recent advancements in natural language processing. We will discuss the various aproaches that has been developed in the past decade.
+
+The field have grown exponentially, with new models being released on a regular bases. Its important to understand these developments for anyone working in the field.
+
+\\section{Methodology}
+In this study, we examined 50 different papers published between 2020-2023. The data shows that transformer-based models is dominating the landscape.
+
+We conducted extensive experiments to validate our hypothesis. Each experiment were carefully designed to test specific aspects of model performance.
+
+\\section{Theorem}
+\\textbf{Theorem 1:} For any language model $L$ with vocabulary size $V$ and embedding dimension $d$, the computational complexity of self-attention is $O(n^2 \\cdot d)$ where $n$ is the sequence length.
+
+\\textbf{Proof:} Let us consider the attention mechanism. For each token in the sequence, we compute attention scores with all other tokens. This requires $n$ dot products for each of the $n$ tokens. Since each dot product operates on $d$-dimensional vectors, the total complexity is $n \\times n \\times d = O(n^2 \\cdot d)$. However, this assumes that the model processes all tokens simultaneously, which may not be true for all architectures.
+
+\\section{Conclusion}
+In conclusion, this study have shown that the landscape of NLP is rapidly evolving. Future work should focus on developing more efficent models.
+
+\\end{document}`;
+  
+  updateHighlightOverlay();
+
+  // Sync scroll
+  documentInput.addEventListener('scroll', () => {
+    highlightOverlay.scrollTop = documentInput.scrollTop;
+    highlightOverlay.scrollLeft = documentInput.scrollLeft;
+  });
+
+  documentInput.addEventListener('input', () => {
+      // If user types, clear corrections
+      if (corrections.length > 0) {
+          resetState();
+      }
+      updateHighlightOverlay();
+  });
+  
+  // Handle text selection
+  documentInput.addEventListener('mouseup', handleTextSelection);
+  documentInput.addEventListener('keyup', handleTextSelection);
+    updateNavigation();
+});
+
+// Event Listeners
+prevBtn.addEventListener('click', () => navigateCorrections(-1));
+nextBtn.addEventListener('click', () => navigateCorrections(1));
+popoverAcceptBtn.addEventListener('click', () => acceptCorrection(currentIndex));
+popoverRejectBtn.addEventListener('click', () => rejectCorrection(currentIndex));
+simplificationModalClose.addEventListener('click', closeSimplificationModal);
+simplificationOverlay.addEventListener('click', closeSimplificationModal);
+summaryClose.addEventListener('click', closeSummaryModal);
+modalOverlay.addEventListener('click', closeSummaryModal);
+apiKeySubmit.addEventListener('click', saveApiKey);
+aboutClose.addEventListener('click', closeAboutModal);
+aboutOverlay.addEventListener('click', closeAboutModal);
+fileClose.addEventListener('click', closeFileModal);
+fileOverlay.addEventListener('click', closeFileModal);
+fileSelectBtn.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', handleFileSelect);
+simplifyBtn.addEventListener('click', handleSimplification);
+proofBtn.addEventListener('click', handleProofCheck);
+copyBtn.addEventListener('click', () => {
+  // This line grabs the ENTIRE text from the editor, regardless of selection
+  navigator.clipboard.writeText(documentInput.value).then(() => {
+    const copyIcon = copyBtn.querySelector('.icon-copy');
+    const checkIcon = copyBtn.querySelector('.icon-check');
+
+    // Swap icons for feedback
+    copyIcon.style.display = 'none';
+    checkIcon.style.display = 'inline-block';
+
+    // Swap back after 2 seconds
+    setTimeout(() => {
+      copyIcon.style.display = 'inline-block';
+      checkIcon.style.display = 'none';
+    }, 2000);
+  }).catch(err => {
+    console.error('Failed to copy text: ', err);
+    alert('Failed to copy text.');
+  });
+});
+
+// This listener is for the "Download" icon button
+downloadBtn.addEventListener('click', () => {
+  // This line also grabs the ENTIRE text from the editor
+  const text = documentInput.value;
+  const blob = new Blob([text], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'document.txt';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+// Drag and drop handlers
+dropZone.addEventListener('dragover', handleDragOver);
+dropZone.addEventListener('dragleave', handleDragLeave);
+dropZone.addEventListener('drop', handleDrop);
+
+document.addEventListener('keydown', (e) => {
+  // Check if we're editing the corrected text
+  if (document.activeElement === popoverCorrected) {
+    // Only allow normal typing, prevent our shortcuts
+    if (['Enter', 'Backspace', 'Delete', 'Escape', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+      e.stopPropagation();
+      if (e.key === 'Enter' || e.key === 'Escape') {
+        e.preventDefault();
+        popoverCorrected.blur(); // Exit editing
+      }
+    }
+    return;
+  }
+  
+  if (e.key === 'ArrowRight') {
+    e.preventDefault();
+    nextBtn.click();
+  } else if (e.key === 'ArrowLeft') {
+    e.preventDefault();
+    prevBtn.click();
+  } else if (e.key === 'Enter') {
+     e.preventDefault();
+     acceptCorrection(currentIndex);
+  } else if (e.key === 'Backspace' || e.key === 'Delete') {
+    if (corrections.length > 0) {        // only lock keys while corrections are active
+        e.preventDefault();
+      rejectCorrection(currentIndex);
+    }
+  } else if (e.key === 'Escape') {
+      e.preventDefault();
+      hidePopover();
+      closeSimplificationModal();
+      closeAboutModal();
+      closeFileModal();
+  }
+});
+
+
+document.addEventListener('click', (e) => {
+    // GUARD CLAUSE: If we are in correction mode, do not allow
+    // a "click away" to hide the popover. The popover must persist.
+    if (corrections.length > 0) {
+        return;
+    }
+
+    // This logic now only runs when NOT in correction mode.
+    // It's for any other potential popovers or future features.
+    // We'll also simplify it slightly as its main job was for corrections.
+    if (currentIndex > -1 && !suggestionPopover.contains(e.target) && !e.target.closest('.suggestion')) {
+        hidePopover();
+        // Resetting index here is important for when the user clicks away
+        // from a suggestion instead of using the nav buttons.
+        currentIndex = -1; 
+        updateNavigation();
+    }
+});
+
+function checkApiKey() {
+  // Check if GEMINI key exists in keys.js
+  if (typeof window.GEMINI === 'undefined' || !window.GEMINI) {
+    // Show API key modal
+    apiKeyModal.style.display = 'block';
+    loadingOverlay.style.display = 'flex';
+    loadingOverlay.style.background = 'rgba(0, 0, 0, 0.5)';
+    loadingText.style.display = 'none';
+  }
+}
+
+function saveApiKey() {
+  const key = apiKeyInput.value.trim();
+  if (key) {
+    window.GEMINI = key;
+    apiKeyModal.style.display = 'none';
+    loadingOverlay.style.display = 'none';
+    loadingOverlay.style.background = 'rgba(255, 255, 248, 0.9)';
+    loadingText.style.display = 'block';
+  }
+}
+
+  function loadRules() {
+    const selectors = [ ruleSelect, styleSelect ];
+    
+    selectors.forEach(selector => {
+      if (!selector) return;
+      selector.innerHTML = '';
+      
+      const isStyle = selector.id === 'styleSelect';
+      
+      Object.entries(window.WRITING_RULES)
+        .filter(([key, rule]) => {
+          if (!rule.name) return false;           // must have a name
+          if (isStyle) {
+            // in the “style” dropdown, only show entries that have a prompt
+            return typeof rule.prompt === 'string';
+          } else {
+            // in the main rules dropdown, skip any model‐config keys
+            return key !== 'models' && key !== 'models_free';
+          }
+        })
+        .forEach(([key, rule]) => {
+          const option = document.createElement('option');
+          option.value = key;
+          option.textContent = rule.name;
+          selector.appendChild(option);
+        });
+    });
+    
+    // pick the first style rule as the default
+    const firstStyle = Object.entries(window.WRITING_RULES)
+      .find(([_k, r]) => typeof r.prompt === 'string');
+    if (firstStyle) {
+      styleSelect.value = firstStyle[0];
+    }
+  }
+
+function resetState() {
+    corrections = [];
+    currentIndex = -1;
+    documentInput.readOnly = false;
+    undoStack = [];
+    undoBtn.style.display = 'none';
+    documentInput.classList.remove('locked'); // <-- UNLOCK MOUSE EVENTS
+    hidePopover();
+    updateHighlightOverlay();
+    updateNavigation();
+}
+
+function handleTextSelection() {
+    const hasSelection = documentInput.selectionStart !== documentInput.selectionEnd;
+  
+    if (hasSelection) {
+        selectionMode = true;
+        selectedText = documentInput.value.substring(documentInput.selectionStart, documentInput.selectionEnd);
+        selectedRange = {
+            start: documentInput.selectionStart,
+            end: documentInput.selectionEnd
+        };
+    } else {
+        selectionMode = false;
+        selectedText = '';
+        selectedRange = null;
+    }
+  
+    updateHighlightOverlay();
+    updateNavigation(); 
+}
+
+function clearUserSelection() {
+    // 1. Collapse the logical selection in the textarea
+    documentInput.setSelectionRange(documentInput.selectionStart, documentInput.selectionStart);
+
+    // 2. Reset our application's selection state variables
+    selectionMode = false;
+    selectedText = '';
+    selectedRange = null;
+
+    // 3. Force the UI to update based on the now-cleared state
+    updateHighlightOverlay();
+    updateNavigation();
+}
+
+function getLanguageInstruction() {
+    const languageSelect = document.getElementById('languageSelect');
+    const selectedOption = languageSelect.options[languageSelect.selectedIndex];
+    const languageValue = selectedOption.value;
+    const languageText = selectedOption.text;
+
+    if (languageValue === 'other') {
+        return '';
+    }
+    return `The primary language of this document is ${languageText}.\n\n`;
+}
+
+function getModelForType(type) {
+    const useFreeModels = document.getElementById('freeModelsCheckbox').checked;
+    const rulesRoot = window.WRITING_RULES || {};          // guard against missing object
+    const models = useFreeModels ? rulesRoot.models_free : rulesRoot.models;
+    return (models && models[type]) ? models[type] : 'gemini-2.0-flash';
+}
+
+function extractLatexContent(text) {
+  // Check if it's a LaTeX document
+  if (!text.includes('\\begin{document}')) {
+    return text;
+  }
+  
+  const beginMatch = text.indexOf('\\begin{document}');
+  const endMatch = text.indexOf('\\end{document}');
+  
+  if (beginMatch !== -1 && endMatch !== -1) {
+    // Extract content between \begin{document} and \end{document}
+    return text.substring(beginMatch + '\\begin{document}'.length, endMatch).trim();
+  } else if (beginMatch !== -1) {
+    // Only \begin{document} found, take everything after it
+    return text.substring(beginMatch + '\\begin{document}'.length).trim();
+  }
+  
+  return text;
+}
+
+function handleUndo() {
+    if (undoStack.length === 0) return; // Nothing to undo
+
+    const lastAction = undoStack.pop();
+    
+    // Restore the text content to exactly what it was before the action
+    documentInput.value = lastAction.textBefore;
+
+    // Re-insert the correction object back into the corrections array at its original index
+    corrections.splice(lastAction.index, 0, lastAction.correction);
+
+    if (lastAction.lengthDiff && lastAction.lengthDiff !== 0) {
+        for (let i = lastAction.index + 1; i < corrections.length; i++) {
+            corrections[i].position.start -= lastAction.lengthDiff;
+            corrections[i].position.end -= lastAction.lengthDiff;
+        }
+    }
+    
+    // Set the current index to the newly restored correction
+    currentIndex = lastAction.index;
+
+    // Refresh the entire UI to reflect the undone state
+    updateActiveCorrection();
+
+    // If the undo stack is now empty, hide the button
+    if (undoStack.length === 0) {
+        undoBtn.style.display = 'none';
+    }
+}
+
+function splitTextIntoChunks(text, maxChunkSize = 30000) {
+  const chunks = [];
+  const paragraphs = text.split(/\n\n+/);
+  let currentChunk = '';
+  
+  for (const paragraph of paragraphs) {
+    if (currentChunk.length + paragraph.length + 2 > maxChunkSize && currentChunk.length > 0) {
+      chunks.push(currentChunk.trim());
+      currentChunk = paragraph;
+    } else {
+      currentChunk += (currentChunk ? '\n\n' : '') + paragraph;
+    }
+  }
+  
+  if (currentChunk) {
+    chunks.push(currentChunk.trim());
+  }
+  
+  console.log(`Split text into ${chunks.length} chunks. Sizes:`, chunks.map(c => c.length));
+  
+  return chunks;
+}
+
+function generatePrompt(text, rule) {
+  if (rule.type === 'grammar') {
+    console.log(`Grammar`);
+    const languageInstruction = getLanguageInstruction();
+    const currentDate = new Date();
+    return `${languageInstruction}You are an elite editor on ${currentDate}. Analyze the following document for grammatical errors, typos, and spelling mistakes. Return ONLY a JSON array of correction objects. Important: Return the list of corrections in the order they appear in the document. DOUBLE CHECK THAT SUGGESTIONS YOU MAKE ACTUALLY REQUIRE A CORRECTION - NEVER SUGGEST 'No change needed' OR SIMILAR!
+
+Each object must have these exact keys:
+- "original": The exact text snippet from the document to be replaced. Be specific enough to be unique.
+- "corrected": The corrected version of the text.
+- "explanation": A brief, clear reason for the change (e.g., "Grammar: Subject-verb agreement.").
+- "type": Must be "grammar".
+
+Focus only on clear errors which are unambiguous. Follow University of Chicago style guidelines. Do not suggest stylistic changes; the user has a style editor who handles those corrections. Do not suggest changes for LaTeX commands (like \\documentclass), including opening or closing brackets, and do not correct single vs. double spaces.  Note that the text may be latex, so Latex-style quotation marks (double accent grave, or double apostrophe), or slash before dollar signs or percentages, are not errors. IMPORTANT: The output MUST be a valid JSON array. All backslashes \\ in the text, such as in LaTeX commands like \\cite, must be escaped with a second backslash (e.g., \\\\cite).
+Return an empty array [] if no errors are found.  
+
+Document to analyze:
+\`\`\`
+${text}
+\`\`\`
+`;
+  } else {
+    console.log(`Style: ${rule.prompt}`);
+    const languageInstruction = getLanguageInstruction();
+    const currentDate = new Date();
+    return `${rule.prompt} ${languageInstruction} It is ${currentDate}.
+
+Return ONLY a JSON array of style suggestion objects. Important: Return the list of corrections in the order they appear in the document. Each object must have these exact keys:
+- "original": The exact text snippet from the document to be replaced. THIS SHOULD BE EXACT. We may use LaTeX slash breaks for $ or %, and use extra \\ to avoid escapes.
+- "corrected": The improved version of the text.
+- "explanation": A brief, clear reason for the change.
+- "type": Must be "style".
+
+Do not check grammar or spelling. Do not suggest changes for LaTeX commands. IMPORTANT: The output MUST be a valid JSON object. All backslashes \\ in the text, such as in LaTeX commands like \\cite, must be escaped with a second backslash (e.g., \\\\cite).
+Return an empty array [] if no improvements are needed.
+
+Document to analyze:
+\`\`\`
+${text}
+\`\`\`
+`;
+  }
+}
+
+
+function generateSimplificationPrompt(text, context) {
+  const languageInstruction = getLanguageInstruction();
+  const currentDate = new Date();
+  const model = getModelForType('simplify');
+  return `${languageInstruction}You are an elite editor on ${currentDate}. The following text may come from an academic article (in which case act like an editor for academically precise content where you still care about good, easy-to-read writing), or general writing. Simplify the following text passage. Provide exactly THREE versions:
+
+1. Same Length: Use simpler words and shorter sentences, but keep approximately the same length. Do NOT replace technical terms if they have precise definitions, but do make the writing snappier and less unwieldy, like a great editor would.
+2. Moderately Shorter: Do the same as in step 1, but reduce length by about 30% while maintaining all key information
+3. Much Shorter: Do the same as in step 2, but reduce length by 50-60%, keeping only essential information
+
+IMPORTANT: Never change mathematical notation, technical terminology, formulas, or proper nouns. Only simplify the language structure and non-technical vocabulary. Do not use markdown in your response. IMPORTANT: The output MUST be a valid JSON object. All backslashes \\ in the text, such as in LaTeX commands like \\cite, must be escaped with a second backslash (e.g., \\\\cite).
+
+Return as JSON:
+{
+  "same_length": "simplified text here",
+  "moderate": "shorter simplified text here",
+  "concise": "much shorter text here"
+}
+
+Text to simplify:
+"${text}"
+
+Context (for reference only):
+${context}
+`;
+}
+
+function generateProofCheckPrompt(proofText, fullDocument) {
+  const languageInstruction = getLanguageInstruction();
+  const currentDate = new Date();
+  const model = getModelForType('proof');
+  return `${languageInstruction}Act like a very well-trained technical graduate student on ${currentDate}. Check the validity of the following mathematical proof or logical argument. Analyze it for:
+- Logical errors or gaps in reasoning
+- Missing steps or assumptions
+- Incorrect applications of theorems or definitions
+- Unclear or ambiguous statements
+Be sure to go through the precise assumptions, the precise conclusions, and the logical steps between them, checking every step for accuracy. If you believe there is an error or omission, be as precise as possible, and write all mathematics in LaTeX. Do not use markdown as a bold. IMPORTANT: The output MUST be a valid JSON object. All backslashes \\ in the text, such as in LaTeX commands like \\cite, must be escaped with a second backslash (e.g., \\\\cite).
+
+Return a JSON object:
+{
+  "is_valid": true/false,
+  "issues": ["List of specific problems found"],
+  "questions": ["List of clarifying questions about unclear parts"],
+  "suggestions": ["List of specific improvements"],
+  "overall": "Brief overall assessment"
+}
+
+Proof to check:
+"${proofText}"
+
+Full document context:
+${fullDocument}
+`;
+}
+
+async function callGeminiAPI(prompt, model, retryCount = 0) {
+    let apiKey = window.GEMINI || '';
+    
+    if (!apiKey) {
+      throw new Error(`API key is missing. Please ensure it's defined.`);
+    }
+
+    const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+    const payload = {
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        responseMimeType: "application/json",
+        temperature: 0.2,
+      }
+    };
+
+    try {
+      const response = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+          const error = await response.json();
+          console.error("Gemini API Error Response:", error);
+          
+          // Check if it's a rate limit error
+          if (response.status === 429 || (error.error && error.error.message && error.error.message.includes('quota'))) {
+            if (retryCount === 0) {
+              // First retry - wait 30 seconds
+              console.log('Rate limit hit, retrying in 30 seconds...');
+              await new Promise(resolve => setTimeout(resolve, 30000));
+              return callGeminiAPI(prompt, model, 1);
+            }
+          }
+          
+          throw new Error(error.error?.message || `API Error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log("Full response from Gemini API:", data);
+      if (data.usageMetadata) {
+        console.log(
+          `%cGemini API Usage%c\nInput Tokens: %c${data.usageMetadata.promptTokenCount}%c\nOutput Tokens: %c${data.usageMetadata.candidatesTokenCount}%c\nTotal Tokens: %c${data.usageMetadata.totalTokenCount}`,
+          'font-weight: bold; color: #1a1a1a; background-color: #fcd0b1; padding: 2px 6px; border-radius: 3px;', // Style for the title
+          '', // Reset style
+          'color: blue;', // Style for input tokens
+          '', // Reset
+          'color: green;', // Style for output tokens
+          '', // Reset
+          'color: purple; font-weight: bold;' // Style for total tokens
+        );
+      }
+
+      const candidate = data.candidates && data.candidates[0];
+
+      if (!candidate || !candidate.content || !candidate.content.parts || candidate.content.parts.length === 0) {
+          console.error("API RESPONSE MALFORMED: 'content.parts' is missing.", candidate);
+          throw new Error(`Analysis failed. API response was malformed. Finish Reason: ${candidate?.finishReason}`);
+      }
+
+      const responseText = candidate.content.parts[0].text;
+      
+      // Try to parse the response
+      try {
+          const parsed = JSON.parse(responseText);
+          return parsed;
+      } catch (e) {
+          // The whole string is not valid JSON. Try to salvage it.
+          console.warn("Could not parse the entire API response as valid JSON. Attempting to salvage individual objects...");
+          console.log("Problematic text:", responseText);
+      }
+      
+      // Salvage Strategy: Treat the text as a stream of objects.
+      const salvagedObjects = [];
+      const objectRegex = /\{(?:[^{}]|R)*\}/g;
+      const potentialObjects = responseText.match(objectRegex);
+
+      if (potentialObjects) {
+          potentialObjects.forEach(potentialJson => {
+              try {
+                  const parsedObject = JSON.parse(potentialJson);
+                  
+                  // Add a basic check to see if it has the required keys for a correction
+                  if (parsedObject.original && parsedObject.corrected) {
+                      salvagedObjects.push(parsedObject);
+                  } else if (parsedObject.same_length || parsedObject.overall || parsedObject.is_valid) {
+                      // It might be a summary or simplification object
+                      salvagedObjects.push(parsedObject);
+                  } else {
+                      console.warn("Salvaged object was missing required keys:", parsedObject);
+                  }
+
+              } catch (e) {
+                  console.warn("Skipping a malformed JSON object within the response:", potentialJson);
+              }
+          });
+      }
+
+      if (salvagedObjects.length > 0) {
+          if(salvagedObjects.length === 1 && (salvagedObjects[0].same_length || salvagedObjects[0].overall || salvagedObjects[0].is_valid)) {
+              return salvagedObjects[0];
+          }
+          return salvagedObjects;
+      }
+
+      throw new Error("Failed to parse or salvage any valid JSON from the API response.");
+      
+    } catch (error) {
+      // If it's a network error and we haven't retried yet, retry once
+      if (retryCount === 0 && error.message.includes('fetch')) {
+        console.log('Network error, retrying in 30 seconds...');
+        await new Promise(resolve => setTimeout(resolve, 30000));
+        return callGeminiAPI(prompt, model, 1);
+      }
+      throw error;
+    }
+}
+
+async function handleAnalysis() {
+  clearUserSelection();
+  const currentText = documentInput.value;
+  if (!currentText.trim()) {
+    alert('Please enter some text to analyze.');
+    return;
+  }
+  
+  const selectedRule = window.WRITING_RULES[ruleSelect.value];
+  if (!selectedRule) {
+    alert('Please select a rule.');
+    return;
+  }
+  
+  resetState();
+  loadingOverlay.style.display = 'flex';
+  
+  try {
+    // Extract LaTeX content if applicable
+    const extractedText = extractLatexContent(currentText);
+    
+    // Split text into chunks
+    const chunks = splitTextIntoChunks(extractedText);
+    
+    const model = getModelForType(selectedRule.type);
+    loadingText.textContent = `Analyzing with ${selectedRule.name}...`;
+    
+    const allCorrections = [];
+
+    // Process each chunk
+    for (let i = 0; i < chunks.length; i++) {
+      loadingText.textContent = `Analyzing part ${i + 1} of ${chunks.length}...`;
+      
+      const prompt = generatePrompt(chunks[i], selectedRule);
+      const results = await callGeminiAPI(prompt, model);
+      
+      if (Array.isArray(results)) {
+        allCorrections.push(...results);
+      }
+    }
+
+    // Map corrections to positions in the original document
+    let searchFromIndex = 0;
+    const mappedCorrections = [];
+
+    for (const corr of allCorrections) {
+      if (!corr || typeof corr.original !== 'string' || corr.original.length === 0) {
+        console.warn("Skipping invalid or empty correction object from API:", corr);
+        continue;
+      }
+
+      const foundAtIndex = currentText.indexOf(corr.original, searchFromIndex);
+
+      if (foundAtIndex !== -1) {
+        corr.position = {
+          start: foundAtIndex,
+          end: foundAtIndex + corr.original.length
+        };
+        mappedCorrections.push(corr);
+        searchFromIndex = corr.position.end;
+      } else {
+        console.warn(`Could not find text for correction: "${corr.original}"`);
+      }
+    }
+    
+    corrections = mappedCorrections;
+
+    if (corrections.length > 0) {
+      documentInput.readOnly = true;        // Prevent typing
+      documentInput.classList.add('locked'); // <-- LOCK MOUSE EVENTS
+      currentIndex = 0;
+      updateActiveCorrection();
+    } else {
+        // No corrections found, so ensure it's not locked
+        documentInput.readOnly = false;
+        documentInput.classList.remove('locked');
+        highlightOverlay.innerHTML = escapeHtml(currentText) + `<div class="empty-state"><h3>No suggestions found</h3><p>Your document looks great!</p></div>`;
+    }
+
+  } catch (error) {
+    alert(`Analysis failed: ${error.message}`);
+    console.error(error);
+  } finally {
+    loadingOverlay.style.display = 'none';
+    loadingText.textContent = 'Analyzing...';
+  }
+} 
+
+async function handleSimplification() {
+  if (!selectedText || !selectedRange) return;
+  
+  loadingOverlay.style.display = 'flex';
+  loadingText.textContent = 'Generating simplifications...';
+  
+  try {
+    const model = getModelForType('simplify');
+    const fullText = documentInput.value;
+    
+    // Get context (1000 chars before and after)
+    const contextStart = Math.max(0, selectedRange.start - 1000);
+    const contextEnd = Math.min(fullText.length, selectedRange.end + 1000);
+    const context = fullText.substring(contextStart, contextEnd);
+    
+    const prompt = generateSimplificationPrompt(selectedText, context);
+    const result = await callGeminiAPI(prompt, model);
+    
+    // Display simplification options in modal
+    displaySimplifications(result);
+    
+  } catch (error) {
+    alert(`Simplification failed: ${error.message}`);
+    console.error(error);
+  } finally {
+    loadingOverlay.style.display = 'none';
+  }
+}
+
+async function handleProofCheck() {
+  if (!selectedText || !selectedRange) return;
+  
+  loadingOverlay.style.display = 'flex';
+  loadingText.textContent = 'Checking proof validity...';
+  
+  try {
+    const model = getModelForType('proof');
+    const fullText = documentInput.value;
+    
+    const prompt = generateProofCheckPrompt(selectedText, fullText);
+    const result = await callGeminiAPI(prompt, model);
+    
+    // Display proof check results in summary modal
+    displayProofCheck(result);
+    
+  } catch (error) {
+    alert(`Proof check failed: ${error.message}`);
+    console.error(error);
+  } finally {
+    loadingOverlay.style.display = 'none';
+  }
+}
+
+function displayProofCheck(result) {
+  let html = '';
+  
+  html += `<div class="summary-section">
+    <h3>Validity</h3>
+    <p><strong>${result.is_valid ? 'Valid' : 'Invalid or Incomplete'}</strong></p>
+  </div>`;
+  
+  if (result.overall) {
+    html += `<div class="summary-section">
+      <h3>Overall Assessment</h3>
+      <p>${escapeHtml(result.overall)}</p>
+    </div>`;
+  }
+  
+  // Use JSON.stringify for objects
+  if (result.issues && result.issues.length > 0) {
+    html += `<div class="summary-section">
+      <h3>Issues Found</h3>
+      <ul>${result.issues.map(item => `<li>${typeof item === 'object' ? JSON.stringify(item, null, 2) : item}</li>`).join('')}</ul>
+    </div>`;
+  }
+  
+  // Use JSON.stringify for objects
+  if (result.questions && result.questions.length > 0) {
+    html += `<div class="summary-section">
+      <h3>Clarifying Questions</h3>
+      <ul>${result.questions.map(item => `<li>${typeof item === 'object' ? JSON.stringify(item, null, 2) : item}</li>`).join('')}</ul>
+    </div>`;
+  }
+  
+  // Use JSON.stringify for objects
+  if (result.suggestions && result.suggestions.length > 0) {
+    html += `<div class="summary-section">
+      <h3>Suggestions</h3>
+      <ul>${result.suggestions.map(item => `<li>${typeof item === 'object' ? JSON.stringify(item, null, 2) : item}</li>`).join('')}</ul>
+    </div>`;
+  }
+  
+  // Update the summary modal title temporarily
+  const modalTitle = summaryModal.querySelector('h2');
+  const originalTitle = modalTitle.textContent;
+  modalTitle.textContent = 'Proof Validity Check';
+  
+  summaryContent.innerHTML = html;
+  summaryModal.classList.add('visible');
+  modalOverlay.classList.add('visible');
+  
+  // Restore original title when modal closes
+  const restoreTitle = () => {
+    modalTitle.textContent = originalTitle;
+    modalOverlay.removeEventListener('click', restoreTitle);
+    summaryClose.removeEventListener('click', restoreTitle);
+  };
+  modalOverlay.addEventListener('click', restoreTitle);
+  summaryClose.addEventListener('click', restoreTitle);
+}
+
+function displaySimplifications(options) {
+  // Set original text
+  simplificationOriginal.textContent = selectedText;
+  
+  let html = '';
+  
+  const variants = [
+    { key: 'same_length', label: 'Same Length (Simpler Language)' },
+    { key: 'moderate', label: 'Moderately Shorter (~30% reduction)' },
+    { key: 'concise', label: 'Much Shorter (~50-60% reduction)' }
+  ];
+  
+  variants.forEach(variant => {
+    if (options[variant.key]) {
+      html += `
+        <div class="simplification-option" data-text="${options[variant.key].replace(/"/g, '&quot;')}">
+          <div class="simplification-label">${variant.label}</div>
+          <div class="simplification-text">${escapeHtml(options[variant.key])}</div>
+        </div>
+      `;
+    }
+  });
+  
+  simplificationOptions.innerHTML = html;
+  
+  // Add click handlers
+  document.querySelectorAll('.simplification-option').forEach(option => {
+    option.addEventListener('click', () => {
+      const newText = option.getAttribute('data-text').replace(/&quot;/g, '"');
+      replaceSelectedText(newText);
+      closeSimplificationModal();
+    });
+  });
+  
+  // Show modal
+  simplificationModal.classList.add('visible');
+  simplificationOverlay.classList.add('visible');
+}
+
+function replaceSelectedText(newText) {
+  if (!selectedRange) return;
+  
+  const currentText = documentInput.value;
+  const before = currentText.substring(0, selectedRange.start);
+  const after = currentText.substring(selectedRange.end);
+  
+  documentInput.value = before + newText + after;
+  
+  clearUserSelection();
+}
+
+function closeSimplificationModal() {
+  simplificationModal.classList.remove('visible');
+  simplificationOverlay.classList.remove('visible');
+}
+
+function closeSummaryModal() {
+  summaryModal.classList.remove('visible');
+  modalOverlay.classList.remove('visible');
+}
+
+function updateHighlightOverlay() {
+  const currentText = documentInput.value;
+  let html = '';
+  let lastPos = 0;
+  
+  // Handle user selection first
+  if (selectionMode && selectedRange) {
+    html += escapeHtml(currentText.substring(0, selectedRange.start));
+    html += `<mark class="user-selection">${escapeHtml(currentText.substring(selectedRange.start, selectedRange.end))}</mark>`;
+    lastPos = selectedRange.end;
+  }
+  
+  // Then handle corrections
+  if (corrections.length > 0) {
+    corrections.forEach((correction, index) => {
+      // Skip if this overlaps with user selection
+      if (selectionMode && selectedRange && 
+          correction.position.start < selectedRange.end && 
+          correction.position.end > selectedRange.start) {
+        return;
+      }
+      
+      html += escapeHtml(currentText.substring(lastPos, correction.position.start));
+      
+      const originalText = currentText.substring(correction.position.start, correction.position.end);
+      html += `<mark class="suggestion" data-index="${index}">${escapeHtml(originalText)}</mark>`;
+      
+      lastPos = correction.position.end;
+    });
+  }
+  
+  html += escapeHtml(currentText.substring(lastPos));
+  highlightOverlay.innerHTML = html;
+  documentInput.style.height = highlightOverlay.offsetHeight + 'px';
+
+  // Add click listeners to suggestion marks
+  document.querySelectorAll('.suggestion').forEach(mark => {
+    mark.addEventListener('click', (e) => {
+      const index = parseInt(e.target.dataset.index, 10);
+      currentIndex = index;
+      updateActiveCorrection();
+    });
+  });
+}
+
+function escapeHtml(text) {
+  if (typeof text !== 'string') return '';
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function updateActiveCorrection() {
+    if (currentIndex < 0 || currentIndex >= corrections.length) {
+        hidePopover();
+        return;
+    }
+
+    updateHighlightOverlay();
+    requestAnimationFrame(() => {
+       const activeMark = highlightOverlay.querySelector(`.suggestion[data-index="${currentIndex}"]`);
+
+       if (activeMark) {
+           activeMark.classList.add('active');
+           showPopoverFor(activeMark);
+           activeMark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+       }
+    });
+    
+    updateNavigation();
+}
+
+function showPopoverFor(element) {
+    const correction = corrections[currentIndex];
+    if (!correction) return;
+
+    popoverExplanation.textContent = correction.explanation;
+    popoverOriginal.textContent = correction.original;
+    popoverCorrected.textContent = correction.corrected;
+    
+    // Simply show the popover - no positioning needed
+    suggestionPopover.classList.add('visible');
+    
+    // Scroll the active element into view with offset for bottom panel
+    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function hidePopover() {
+    suggestionPopover.classList.remove('visible');
+    document.querySelectorAll('.suggestion.active').forEach(el => el.classList.remove('active'));
+}
+
+function navigateCorrections(direction) {
+    if (corrections.length === 0) return;
+    
+    const newIndex = currentIndex + direction;
+    
+    if (newIndex >= 0 && newIndex < corrections.length) {
+        currentIndex = newIndex;
+        updateActiveCorrection();
+    }
+}
+
+function updateNavigation() {
+    const correctionControls = document.getElementById('correctionControls');
+    
+    // Handle Correction Navigation
+    if (corrections.length > 0 && currentIndex > -1) {
+        correctionControls.style.display = 'flex';
+        navInfo.textContent = `${currentIndex + 1} / ${corrections.length}`;
+        prevBtn.disabled = currentIndex <= 0;
+        nextBtn.disabled = currentIndex >= corrections.length - 1;
+    } else {
+        correctionControls.style.display = 'none';
+    }
+
+    // Handle Selection Actions
+    if (selectionMode && selectedText) {
+        selectionActions.style.display = 'flex';
+        const proofKeywords = /\\(?:theorem|proposition|lemma|proof)|\b(?:theorem|proposition|lemma|proof)\b/i;
+        const hasProofContent = proofKeywords.test(selectedText);
+        proofBtn.style.display = hasProofContent ? 'block' : 'none';
+    } else {
+        selectionActions.style.display = 'none';
+    }
+}
+
+function acceptCorrection(index) {
+  if (index < 0 || index >= corrections.length) return;
+
+  const correction = corrections[index];
+  const editedCorrectionText = popoverCorrected.textContent;
+  
+  // Calculate lengthDiff once, at the start
+  const lengthDiff = editedCorrectionText.length - (correction.position.end - correction.position.start);
+
+  // --- UNDO LOGIC: ADD lengthDiff TO THE SAVED STATE ---
+  undoStack.push({
+      action: 'accept',
+      correction: { ...correction },
+      index: index,
+      textBefore: documentInput.value,
+      lengthDiff: lengthDiff // <-- THE KEY ADDITION
+  });
+  undoBtn.style.display = 'flex';
+  
+  let currentText = documentInput.value;
+  
+  currentText = currentText.substring(0, correction.position.start) +
+                 editedCorrectionText +
+                 currentText.substring(correction.position.end);
+  documentInput.value = currentText;
+
+  corrections.splice(index, 1);
+  
+  // This loop now uses the pre-calculated lengthDiff
+  for (let i = index; i < corrections.length; i++) {
+    corrections[i].position.start += lengthDiff;
+    corrections[i].position.end += lengthDiff;
+  }
+  
+  if (corrections.length === 0) {
+    resetState();
+  } else {
+    currentIndex = Math.min(index, corrections.length - 1);
+    updateActiveCorrection();
+  }
+}
+
+function rejectCorrection(index) {
+  if (index < 0 || index >= corrections.length) return;
+
+  undoStack.push({
+      action: 'reject',
+      correction: { ...corrections[index] }, // Store a copy
+      index: index,
+      textBefore: documentInput.value // Text state is unchanged, but good for consistency
+  });
+  undoBtn.style.display = 'flex'; // Show the undo button
+
+  corrections.splice(index, 1);
+
+  if (corrections.length === 0) {
+      resetState(); // This will unlock the editor
+      updateHighlightOverlay();
+  } else {
+    currentIndex = Math.min(index, corrections.length - 1);
+    updateActiveCorrection();
+  }
+}
+
+// Modal functions
+function showAboutModal() {
+  aboutModal.classList.add('visible');
+  aboutOverlay.classList.add('visible');
+}
+
+function closeAboutModal() {
+  aboutModal.classList.remove('visible');
+  aboutOverlay.classList.remove('visible');
+}
+
+function showFileModal() {
+  fileModal.classList.add('visible');
+  fileOverlay.classList.add('visible');
+}
+
+function closeFileModal() {
+  fileModal.classList.remove('visible');
+  fileOverlay.classList.remove('visible');
+  dropZone.classList.remove('dragging');
+}
+
+
+// File handling functions
+function handleDragOver(e) {
+  e.preventDefault();
+  dropZone.classList.add('dragging');
+}
+
+function handleDragLeave(e) {
+  e.preventDefault();
+  dropZone.classList.remove('dragging');
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  dropZone.classList.remove('dragging');
+  
+  const files = e.dataTransfer.files;
+  if (files.length > 0) {
+    processFile(files[0]);
+  }
+}
+
+function handleFileSelect(e) {
+  const files = e.target.files;
+  if (files.length > 0) {
+    processFile(files[0]);
+  }
+}
+
+function processFile(file) {
+  // Check file extension
+  const fileName = file.name.toLowerCase();
+  if (!fileName.endsWith('.tex') && !fileName.endsWith('.txt')) {
+    alert('Please select a .tex or .txt file');
+    return;
+  }
+  
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    documentInput.value = e.target.result;
+    updateHighlightOverlay();
+    closeFileModal();
+    resetState();
+  };
+  reader.onerror = function() {
+    alert('Error reading file');
+  };
+  reader.readAsText(file);
+}
+
+</script>
+
+</body>
+</html>
