@@ -1617,7 +1617,7 @@ Each object must have these exact keys:
 - "explanation": A brief, clear reason for the change (e.g., "Grammar: Subject-verb agreement.").
 - "type": Must be "grammar".
 
-Focus only on clear errors which are unambiguous. Follow University of Chicago style guidelines. Do not suggest stylistic changes; the user has a style editor who handles those corrections. Do not suggest changes for LaTeX commands (like \\documentclass), including opening or closing brackets, and do not correct single vs. double spaces.  Note that the text may be latex, so Latex-style quotation marks (double accent grave, or double apostrophe), or slash before dollar signs or percentages, are not errors. IMPORTANT: The output MUST be a valid JSON array. All backslashes \\ in the text, such as in LaTeX commands like \\cite, must be escaped with a second backslash (e.g., \\\\cite).
+Focus only on clear errors which are unambiguous. DO NOT suggest em dashes or other changes to hyphenation or dash offsets. Follow University of Chicago style guidelines. Do not suggest stylistic changes; the user has a style editor who handles those corrections. Do not suggest changes for LaTeX commands (like \\documentclass), including opening or closing brackets, and do not correct single vs. double spaces.  Note that the text may be latex, so Latex-style quotation marks (double accent grave, or double apostrophe), or slash before dollar signs or percentages, are not errors. IMPORTANT: The output MUST be a valid JSON array. All backslashes \\ in the text, such as in LaTeX commands like \\cite, must be escaped with a second backslash (e.g., \\\\cite).
 Return an empty array [] if no errors are found.  
 
 Document to analyze:

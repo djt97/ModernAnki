@@ -54,7 +54,7 @@ Eliminate "Thing": Replace any use of thing or things with the specific object o
 Specify Comparisons: Ensure comparisons are complete. The new model is faster. → The new model is faster than the previous version.
 Category 3: Verb Strength & Phrasing
 Aggressive Active Voice: Convert passive voice (A was done by B) to active (B did A), unless the agent is unknown or irrelevant.
-Eliminate "Zombie Nouns" (Nominalizations): Convert nouns back into verbs.
+Eliminate "Zombie Nouns" (Nominalizations): Convert nouns back into verbs. Examples include
 make a decision → decide
 perform an analysis → analyze
 provide a justification → justify
@@ -89,6 +89,7 @@ Correct Dangling Modifiers: Identify and suggest rephrasing for misplaced openin
 Enforce Parallel Structure: In lists or series (A, B, and C), ensure all elements are grammatically parallel. Also check in either/or, not only/but also, and other paired constructions.
 Place Emphasis at the End: The end of the sentence carries the most weight. Suggest reordering sentences to place the most important or surprising information last.
 Eliminate "It is..." Openers: Rewrite sentences starting with It is [adjective] that.... It is clear that the model is flawed. → Clearly, the model is flawed.
+Limit frequency of multiclause sentences, parantheticals, hyphen set offs of clauses, semicolon breaks: some are ok but keep only the cleanest version but otherwise prefer simpler sentence structure.
 Eliminate "What..." Openers: Rewrite sentences that use the What X did was... construction. What the researchers did was to survey the population. → The researchers surveyed the population.
 Use Punctuation for Rhythm: Suggest using an em-dash for an emphatic break or a colon to introduce a list or explanation, as an alternative to breaking a sentence.
 Category 6: Local Context & Logical Flow (Paragraph Level)
