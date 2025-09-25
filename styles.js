@@ -9,7 +9,54 @@ ADD YOUR TEXT HERE, CHANGING NAME ABOVE TO THE STYLE NAME
 ` };
 */
 
+// Base generic flashcards (fallback)
+window.WRITING_RULES['flashcards_base'] = {
+  name: 'Flashcards (General)',
+  type: 'flashcard',
+  prompt: `
+Emphasize atomic, univocal cards. Use simple, precise phrasing.
+Prefer fronts like “Define…”, “State…”, “What is…”, “Under what conditions…”, “What’s the difference between…”.
+Keep one idea per back; do not bundle multiple answers.
+Allow Markdown and LaTeX (inline $...$ or display \\[ ... \\]); preserve original notation without “fixing” it.
+`};
 
+// Math
+window.WRITING_RULES['flashcards_math'] = {
+  name: 'Math',
+  type: 'flashcard',
+  prompt: `
+Focus on: definitions, statements of theorems/lemmas, conditions, counterexamples, canonical forms, algorithm steps, and key equations.
+Fronts should be univocal (single correct answer). Keep precise variable names and symbols.
+For equations, consider a card asking the student to recall or complete the expression.
+Allow LaTeX freely; do not wrap in code fences.
+`};
+
+// Economics
+window.WRITING_RULES['flashcards_econ'] = {
+  name: 'Economics',
+  type: 'flashcard',
+  prompt: `
+Focus on: definitions (elasticity, welfare theorems), identification assumptions, equilibrium concepts, comparative statics, key mechanisms, canonical results and counterexamples.
+Use field-accurate terminology; preserve math.
+`};
+
+// History
+window.WRITING_RULES['flashcards_history'] = {
+  name: 'History',
+  type: 'flashcard',
+  prompt: `
+Focus on: dates, actors, places, causation chains, “X led to Y because…”, distinctions among schools of thought, periodization markers, treaty terms.
+Ensure fronts are univocal; avoid vague “discuss” prompts.
+`};
+
+// Computer Science
+window.WRITING_RULES['flashcards_cs'] = {
+  name: 'Computer Science',
+  type: 'flashcard',
+  prompt: `
+Focus on: definitions, asymptotic bounds, invariants, algorithm steps & correctness conditions, complexity classes, data structure properties, standard reductions.
+Use precise notation; include key recurrence or pseudocode fragments when appropriate.
+`};
 
 
 window.WRITING_RULES['literary_nonfiction'] = {

@@ -888,6 +888,56 @@ body {
 .api-key-modal button:hover {
   background: #111;
 }
+
+/* ───── Flashcards Panel ───── */
+.flashcards-section {
+  max-width: 80ch;
+  margin: 2rem auto 0;
+  border: 1px dashed var(--border-color);
+  background: rgba(255,255,255,0.6);
+  border-radius: 6px;
+  padding: 12px;
+}
+.flashcards-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-family: var(--font-sans);
+}
+.flashcards-output {
+  width: 100%;
+  min-height: 140px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: #fff;
+  color: #222;
+  resize: vertical;
+}
+
+/* Make both sides editable look consistent */
+.popover-diff del[contenteditable="true"]:focus,
+.popover-diff ins[contenteditable="true"]:focus {
+  outline: 1px solid #888;
+  box-shadow: 0 0 3px rgba(0,0,0,0.1);
+  background-color: #fff;
+}
+
+/* Label the popover fields as Front and Back when we're using flashcards */
+.popover-diff del::before {
+  content: 'Front: ';
+  font-weight: 600;
+  color: #666;
+}
+.popover-diff ins::before {
+  content: 'Back: ';
+  font-weight: 600;
+  color: #666;
+}
 </style>
 </head>
 <body>
@@ -903,11 +953,11 @@ body {
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
   </button>
 
-  <!-- Wrapper for analysis buttons to add the line above -->
+  <!-- Wrapper for analysis button to add the line above -->
   <div class="analysis-controls">
-    <button class="selection-btn analyze-btn" id="analyzeGrammarBtn">Grammar</button>
-    <button class="selection-btn analyze-btn" id="analyzeStyleBtn">Style</button>
+  <button class="selection-btn analyze-btn" id="analyzeFlashcardsBtn">Flashcards</button>
   </div>
+
 
   <!-- Navigation controls (visible during corrections) -->
   <div class="correction-controls" id="correctionControls" style="display: none;">
@@ -929,6 +979,7 @@ body {
   <div class="selection-actions" id="selectionActions" style="display: none;">
     <button class="selection-btn" id="simplifyBtn">Simplify</button>
     <button class="selection-btn" id="proofBtn">Check Proof</button>
+    <button class="selection-btn" id="makeCardBtn">Make Card</button>
   </div>
 </div>
 
@@ -959,9 +1010,17 @@ body {
       </select>
     </div>
     <div class="menu-select-group">
-      <label for="styleSelect">Style Rule:</label>
+      <label for="styleSelect">Flashcard Domain:</label>
       <select id="styleSelect" class="menu-style-select">
         <!-- Options will be populated from rules.js -->
+      </select>
+    </div>
+    <div class="menu-select-group">
+      <label for="depthSelect">Flashcard Depth:</label>
+      <select id="depthSelect">
+        <option value="shallow">Shallow</option>
+        <option value="medium" selected>Medium</option>
+        <option value="complete">Complete</option>
       </select>
     </div>
     <label class="menu-toggle">
@@ -979,6 +1038,37 @@ body {
     <div class="highlight-overlay" id="highlightOverlay"></div>
     <textarea class="editor-textarea" id="documentInput" placeholder="Paste or write your document here..."></textarea>
   </div>
+
+  <!-- Accepted Flashcards Panel -->
+  <section class="flashcards-section" id="flashcardsSection">
+    <div class="flashcards-header">
+      <h3>Accepted Flashcards</h3>
+      <div class="flashcards-actions">
+        <button class="nav-btn icon-btn" id="copyFlashcardsBtn" title="Copy Flashcards">
+          <!-- reuse the clipboard icon -->
+          <svg class="icon-copy" xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+               viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+        </button>
+        <button class="nav-btn icon-btn" id="downloadFlashcardsBtn" title="Download flashcards (.txt)">
+          <!-- reuse the download icon -->
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+               viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <textarea id="flashcardsOutput" class="flashcards-output"
+              placeholder="Accepted cards appear here — each line is Front[TAB]Back (ready for Anki Basic import)."
+              readonly></textarea>
+  </section>
 </main>
 
 
@@ -1081,6 +1171,7 @@ let apiKey = '';
 let selectedText = '';
 let selectedRange = null;
 let selectionMode = false;
+let acceptedFlashcards = [];
 
 // DOM elements
 const undoBtn = document.getElementById('undoBtn');
@@ -1121,6 +1212,12 @@ const copyBtn = document.getElementById('copyBtn');
 const downloadBtn = document.getElementById('downloadBtn');
 const styleSelect = document.getElementById('styleSelect');
 const correctionControls = document.getElementById('correctionControls');
+const flashcardsOutput = document.getElementById('flashcardsOutput');
+const copyFlashcardsBtn = document.getElementById('copyFlashcardsBtn');
+const downloadFlashcardsBtn = document.getElementById('downloadFlashcardsBtn');
+const depthSelect = document.getElementById('depthSelect');
+const makeCardBtn = document.getElementById('makeCardBtn');
+
 
 // Hamburger elements
 const hamburgerBtn = document.getElementById('hamburgerBtn');
@@ -1129,8 +1226,7 @@ const menuClose = document.getElementById('menuClose');
 const menuOverlay = document.getElementById('menuOverlay');
 const helpBtn = document.getElementById('helpBtn');
 const newDocBtn = document.getElementById('newDocBtn');
-const analyzeGrammarBtn = document.getElementById('analyzeGrammarBtn');
-const analyzeStyleBtn = document.getElementById('analyzeStyleBtn');
+const analyzeFlashcardsBtn = document.getElementById('analyzeFlashcardsBtn');
 
 
 // Popover elements
@@ -1147,9 +1243,8 @@ menuClose.addEventListener('click', closeHamburgerMenu);
 menuOverlay.addEventListener('click', closeHamburgerMenu);
 
 styleSelect.addEventListener('change', () => {
-  // Update the hidden main selector if it's a style rule
   const rule = window.WRITING_RULES[styleSelect.value];
-  if (rule && rule.type === 'style') {
+  if (rule && (rule.type === 'flashcard' || rule.type === 'style')) {
     ruleSelect.value = styleSelect.value;
   }
 });
@@ -1166,20 +1261,34 @@ newDocBtn.addEventListener('click', () => {
   showFileModal();
 });
 
-analyzeGrammarBtn.addEventListener('click', () => {
+analyzeFlashcardsBtn.addEventListener('click', () => {
   closeHamburgerMenu();
-  ruleSelect.value = 'grammar';
+  // Use whatever is selected in the domain dropdown; fallback to a base flashcard rule
+  const candidate = window.WRITING_RULES[styleSelect.value];
+  ruleSelect.value = (candidate && candidate.type === 'flashcard') ? styleSelect.value : 'flashcards_base';
   handleAnalysis();
 });
 
-analyzeStyleBtn.addEventListener('click', () => {
-  closeHamburgerMenu();
-  const selectedStyle = styleSelect.value;
-  if (selectedStyle) {
-    ruleSelect.value = selectedStyle;
-    handleAnalysis();
-  }
+
+copyFlashcardsBtn.addEventListener('click', () => {
+  navigator.clipboard.writeText(flashcardsOutput.value || '')
+    .catch(err => { console.error('Failed to copy flashcards:', err); alert('Failed to copy flashcards.'); });
 });
+
+downloadFlashcardsBtn.addEventListener('click', () => {
+  const text = flashcardsOutput.value || '';
+  const blob = new Blob([text], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'flashcards.txt';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+makeCardBtn.addEventListener('click', handleMakeCardFromSelection);
 
 function openHamburgerMenu() {
   hamburgerMenu.classList.add('open');
@@ -1188,8 +1297,8 @@ function openHamburgerMenu() {
   // If current rule is a style, update style selector
   if (ruleSelect && ruleSelect.value && window.WRITING_RULES) {
     const currentRule = window.WRITING_RULES[ruleSelect.value];
-    if (currentRule && currentRule.type === 'style' && styleSelect) {
-      styleSelect.value = ruleSelect.value;
+    if (currentRule && (currentRule.type === 'flashcard' || currentRule.type === 'style') && styleSelect) {
+  styleSelect.value = ruleSelect.value;
     }
   }
 }
@@ -1197,6 +1306,102 @@ function openHamburgerMenu() {
 function closeHamburgerMenu() {
   hamburgerMenu.classList.remove('open');
   menuOverlay.classList.remove('visible');
+}
+
+function updateFlashcardsOutput() {
+  // NEW FORMAT: Front \n Back \n\n
+  const text = acceptedFlashcards
+    .map(c => `${c.front}\n${c.back}`)
+    .join('\n\n');
+  if (flashcardsOutput) flashcardsOutput.value = text;
+}
+
+function generateSelectionFlashcardPrompt(selection, context, rule) {
+  const languageInstruction = getLanguageInstruction();
+  const depth = (typeof depthSelect !== 'undefined' ? depthSelect.value : 'medium');
+  const depthInstruction = (depth === 'shallow')
+    ? 'Return at most 2 cards for the selection.'
+    : (depth === 'complete')
+      ? 'Return 1–3 cards; prefer splitting into atomic cards if multiple ideas appear.'
+      : 'Return 1–2 cards.';
+
+  const domainFragment = (rule && rule.prompt) ? rule.prompt : '';
+  const currentDate = new Date();
+
+  return `${languageInstruction}You are an expert study coach on ${currentDate}.
+Create flashcards ONLY from the SELECTED text (use its CONTEXT only to disambiguate).
+Atomicity & univocality required. Allow Markdown/LaTeX. Include a "source" snippet copied verbatim from the selection if possible; otherwise from the immediate context.
+
+${depthInstruction}
+
+Domain guidance:
+${domainFragment}
+
+Return ONLY a JSON array of 1–3 objects with keys: source, front, back, explanation (optional).
+
+SELECTION:
+\`\`\`
+${selection}
+\`\`\`
+
+CONTEXT (may be used for source if needed):
+\`\`\`
+${context}
+\`\`\`
+`;
+}
+
+async function handleMakeCardFromSelection() {
+  if (!selectedText || !selectedRange) return;
+
+  try {
+    loadingOverlay.style.display = 'flex';
+    loadingText.textContent = 'Generating card...';
+
+    // Use the currently chosen domain rule if set
+    const chosen = window.WRITING_RULES[ruleSelect.value] || window.WRITING_RULES['flashcards_base'];
+    const model = getModelForType('flashcard');
+
+    const fullText = documentInput.value;
+    const ctxStart = Math.max(0, selectedRange.start - 400);
+    const ctxEnd   = Math.min(fullText.length, selectedRange.end + 400);
+    const context  = fullText.substring(ctxStart, ctxEnd);
+
+    const prompt = generateSelectionFlashcardPrompt(selectedText, context, chosen);
+    const results = await callGeminiAPI(prompt, model);
+
+    const arr = Array.isArray(results) ? results : [];
+    if (arr.length === 0) {
+      alert('No card generated for the selection.');
+      return;
+    }
+
+    // Normalize and insert as suggestions anchored to the selection range
+    arr.forEach(obj => {
+      const card = {
+        type: 'flashcard',
+        source: (typeof obj.source === 'string' && obj.source.length > 0) ? obj.source : selectedText.slice(0, 160),
+        front:  (typeof obj.front  === 'string') ? obj.front  : '',
+        back:   (typeof obj.back   === 'string') ? obj.back   : '',
+        explanation: (typeof obj.explanation === 'string') ? obj.explanation : '',
+        position: { start: selectedRange.start, end: selectedRange.end }
+      };
+      corrections.push(card);
+    });
+
+    // Clear user selection so the suggestion highlight is visible
+    clearUserSelection();
+
+    // Jump to the last inserted card (or the first if only one)
+    currentIndex = corrections.length - 1;
+    updateActiveCorrection();
+
+  } catch (err) {
+    console.error(err);
+    alert('Card generation failed.');
+  } finally {
+    loadingOverlay.style.display = 'none';
+  }
 }
 
 window.WRITING_RULES = {
@@ -1207,18 +1412,27 @@ window.WRITING_RULES = {
     type: "grammar"
   },
 
+   // NEW: Flashcards rule
+  "flashcards": {
+    name: "Flashcards",
+    description: "Generate Q/A cards anchored to the source text",
+    type: "flashcard"
+  },
+
   // Model specifications for different operations
   "models": {
     "grammar": "gemini-2.5-flash-preview-05-20",
     "style": "gemini-2.5-flash-preview-05-20", 
     "simplify": "gemini-2.5-pro-preview-06-05",
-    "proof": "gemini-2.5-pro-preview-06-05"
+    "proof": "gemini-2.5-pro-preview-06-05",
+    "flashcard": "gemini-2.5-pro-preview-06-05"          // NEW
   },
   "models_free": {
     "grammar": "gemini-2.5-flash-preview-05-20",
     "style": "gemini-2.5-flash-preview-05-20", 
     "simplify": "gemini-2.5-flash-preview-05-20",
-    "proof": "gemini-2.5-flash-preview-05-20"
+    "proof": "gemini-2.5-flash-preview-05-20",
+    "flashcard": "gemini-2.5-flash-preview-05-20"         // NEW
   }
 };
 
@@ -1232,6 +1446,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   freeModelsCheckbox.checked = JSON.parse(localStorage.getItem('useFreeModels') || 'false');
   languageSelect.value       = localStorage.getItem('languagePref') || 'en-US';
   styleSelect.value          = localStorage.getItem('stylePref')    || 'literary_nonfiction';
+  
+  depthSelect.value = localStorage.getItem('flashcardDepth') || 'medium';
+  depthSelect.addEventListener('change', () =>
+    localStorage.setItem('flashcardDepth', depthSelect.value)
+  );
 
   freeModelsCheckbox.addEventListener('change', () =>
     localStorage.setItem('useFreeModels', freeModelsCheckbox.checked)
@@ -1353,7 +1572,7 @@ dropZone.addEventListener('drop', handleDrop);
 
 document.addEventListener('keydown', (e) => {
   // Check if we're editing the corrected text
-  if (document.activeElement === popoverCorrected) {
+  if (document.activeElement === popoverCorrected || document.activeElement === popoverOriginal) {
     // Only allow normal typing, prevent our shortcuts
     if (['Enter', 'Backspace', 'Delete', 'Escape', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
       e.stopPropagation();
@@ -1443,8 +1662,8 @@ function saveApiKey() {
         .filter(([key, rule]) => {
           if (!rule.name) return false;           // must have a name
           if (isStyle) {
-            // in the “style” dropdown, only show entries that have a prompt
-            return typeof rule.prompt === 'string';
+            // Show only flashcard-type entries in the domain dropdown
+            return typeof rule.prompt === 'string' && rule.type === 'flashcard';
           } else {
             // in the main rules dropdown, skip any model‐config keys
             return key !== 'models' && key !== 'models_free';
@@ -1555,7 +1774,22 @@ function handleUndo() {
     if (undoStack.length === 0) return; // Nothing to undo
 
     const lastAction = undoStack.pop();
-    
+
+    if (lastAction.action === 'accept_card') {
+    const i = acceptedFlashcards.findIndex(c =>
+      c.front === lastAction.card.front && c.back === lastAction.card.back
+    );
+    if (i !== -1) acceptedFlashcards.splice(i, 1);
+    updateFlashcardsOutput();
+
+    corrections.splice(lastAction.index, 0, lastAction.correction);
+    currentIndex = lastAction.index;
+    updateActiveCorrection();
+
+    if (undoStack.length === 0) undoBtn.style.display = 'none';
+    return;
+    }
+
     // Restore the text content to exactly what it was before the action
     documentInput.value = lastAction.textBefore;
 
@@ -1605,6 +1839,49 @@ function splitTextIntoChunks(text, maxChunkSize = 30000) {
 }
 
 function generatePrompt(text, rule) {
+ if (rule.type === 'flashcard') {
+    const languageInstruction = getLanguageInstruction();
+    const depth = (typeof depthSelect !== 'undefined' ? depthSelect.value : 'medium');
+    const depthInstruction = {
+      shallow: `Generate only high-yield cards. Target ~1 card per 300–500 words (or 3–5 paragraphs).`,
+      medium:  `Generate 1–3 cards per paragraph (~1 per 150–250 words).`,
+      complete:`Generate cards for nearly every line of content: each definition, equation, step, bullet, and claim gets at least one card. If sentences contain multiple ideas, create multiple cards.`
+    }[depth] || '';
+
+    // rule.prompt is our DOMAIN fragment from styles.js
+    const domainFragment = (rule.prompt || '');
+
+    const currentDate = new Date();
+    return `${languageInstruction}You are an expert study coach on ${currentDate}.
+    Read the DOCUMENT and output ONLY a JSON array of flashcard objects in order of appearance.
+    Atomicity: each "back" expresses exactly one idea.
+    Univocality: each "front" has a single correct answer.
+    Anchoring: include a "source" snippet (<=160 chars) copied verbatim from the document that motivates the card.
+    Notation: you may use Markdown and LaTeX (inline $...$ or display \\[ ... \\]); preserve original symbols/notation. Do not wrap answers in triple backticks.
+    No meta commentary. No markdown outside of the Q/A text itself.
+
+    ${depthInstruction}
+
+    Domain guidance:
+    ${domainFragment}
+
+    JSON schema (strict):
+    [
+      {
+        "source": "verbatim snippet from the document (<=160 chars, must exist in the text)",
+        "front": "short question/prompt; single-answered",
+        "back": "concise but complete answer; one idea; may include LaTeX",
+        "explanation": "optional: why this card matters (short)"
+      },
+      ...
+    ]
+
+    DOCUMENT:
+    \`\`\`
+    ${text}
+    \`\`\`
+    `;
+      }
   if (rule.type === 'grammar') {
     console.log(`Grammar`);
     const languageInstruction = getLanguageInstruction();
@@ -1847,7 +2124,9 @@ async function handleAnalysis() {
     const extractedText = extractLatexContent(currentText);
     
     // Split text into chunks
-    const chunks = splitTextIntoChunks(extractedText);
+    const depth = (typeof depthSelect !== 'undefined' ? depthSelect.value : 'medium');
+    const maxChunk = depth === 'complete' ? 12000 : 30000;   // tighter chunks for dense outputs
+    const chunks = splitTextIntoChunks(extractedText, maxChunk);
     
     const model = getModelForType(selectedRule.type);
     loadingText.textContent = `Analyzing with ${selectedRule.name}...`;
@@ -1866,30 +2145,31 @@ async function handleAnalysis() {
       }
     }
 
-    // Map corrections to positions in the original document
+    // Map results to positions in the original document
     let searchFromIndex = 0;
     const mappedCorrections = [];
+    const snippetKey = (selectedRule.type === 'flashcard') ? 'source' : 'original';
 
     for (const corr of allCorrections) {
-      if (!corr || typeof corr.original !== 'string' || corr.original.length === 0) {
-        console.warn("Skipping invalid or empty correction object from API:", corr);
+      if (!corr || typeof corr[snippetKey] !== 'string' || corr[snippetKey].length === 0) {
+        console.warn("Skipping invalid object from API:", corr);
         continue;
       }
-
-      const foundAtIndex = currentText.indexOf(corr.original, searchFromIndex);
-
+      const foundAtIndex = currentText.indexOf(corr[snippetKey], searchFromIndex);
       if (foundAtIndex !== -1) {
-        corr.position = {
-          start: foundAtIndex,
-          end: foundAtIndex + corr.original.length
-        };
+        corr.position = { start: foundAtIndex, end: foundAtIndex + corr[snippetKey].length };
+        if (selectedRule.type === 'flashcard') {
+          corr.type = 'flashcard';
+          corr.front = (typeof corr.front === 'string') ? corr.front : '';
+          corr.back  = (typeof corr.back  === 'string') ? corr.back  : '';
+          corr.explanation = (typeof corr.explanation === 'string') ? corr.explanation : '';
+        }
         mappedCorrections.push(corr);
         searchFromIndex = corr.position.end;
       } else {
-        console.warn(`Could not find text for correction: "${corr.original}"`);
+        console.warn(`Could not anchor object using "${corr[snippetKey]}"`);
       }
     }
-    
     corrections = mappedCorrections;
 
     if (corrections.length > 0) {
@@ -2161,18 +2441,25 @@ function updateActiveCorrection() {
 }
 
 function showPopoverFor(element) {
-    const correction = corrections[currentIndex];
-    if (!correction) return;
+  const correction = corrections[currentIndex];
+  if (!correction) return;
 
-    popoverExplanation.textContent = correction.explanation;
-    popoverOriginal.textContent = correction.original;
-    popoverCorrected.textContent = correction.corrected;
-    
-    // Simply show the popover - no positioning needed
-    suggestionPopover.classList.add('visible');
-    
-    // Scroll the active element into view with offset for bottom panel
-    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  if (correction.type === 'flashcard') {
+    popoverExplanation.textContent = correction.explanation || 'Edit the card (Front/Back) and press Enter to accept or Backspace/Delete to reject.';
+    popoverOriginal.setAttribute('contenteditable', 'true');
+    popoverCorrected.setAttribute('contenteditable', 'true');
+    popoverOriginal.textContent = correction.front || '';
+    popoverCorrected.textContent = correction.back || '';
+  } else {
+    popoverExplanation.textContent = correction.explanation || '';
+    popoverOriginal.removeAttribute('contenteditable');
+    popoverCorrected.setAttribute('contenteditable', 'true');
+    popoverOriginal.textContent = correction.original || '';
+    popoverCorrected.textContent = correction.corrected || '';
+  }
+
+  suggestionPopover.classList.add('visible');
+  element.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 function hidePopover() {
@@ -2219,42 +2506,60 @@ function acceptCorrection(index) {
   if (index < 0 || index >= corrections.length) return;
 
   const correction = corrections[index];
-  const editedCorrectionText = popoverCorrected.textContent;
-  
-  // Calculate lengthDiff once, at the start
-  const lengthDiff = editedCorrectionText.length - (correction.position.end - correction.position.start);
 
-  // --- UNDO LOGIC: ADD lengthDiff TO THE SAVED STATE ---
-  undoStack.push({
-      action: 'accept',
+  // FLASHCARD MODE
+  if (correction.type === 'flashcard') {
+    const front = (popoverOriginal.textContent || '').trim();
+    const back  = (popoverCorrected.textContent || '').trim();
+
+    undoStack.push({
+      action: 'accept_card',
       correction: { ...correction },
-      index: index,
-      textBefore: documentInput.value,
-      lengthDiff: lengthDiff // <-- THE KEY ADDITION
+      index,
+      card: { front, back },
+      textBefore: documentInput.value
+    });
+    undoBtn.style.display = 'flex';
+
+    acceptedFlashcards.push({ front, back });
+    updateFlashcardsOutput();
+
+    corrections.splice(index, 1);
+    if (corrections.length === 0) {
+      resetState();
+    } else {
+      currentIndex = Math.min(index, corrections.length - 1);
+      updateActiveCorrection();
+    }
+    return;
+  }
+
+  // LEGACY path (grammar/style) if you keep them
+  const editedCorrectionText = popoverCorrected.textContent;
+  const lengthDiff = editedCorrectionText.length - (correction.position.end - correction.position.start);
+  undoStack.push({
+    action: 'accept',
+    correction: { ...correction },
+    index: index,
+    textBefore: documentInput.value,
+    lengthDiff: lengthDiff
   });
   undoBtn.style.display = 'flex';
-  
+
   let currentText = documentInput.value;
-  
   currentText = currentText.substring(0, correction.position.start) +
-                 editedCorrectionText +
-                 currentText.substring(correction.position.end);
+               editedCorrectionText +
+               currentText.substring(correction.position.end);
   documentInput.value = currentText;
 
   corrections.splice(index, 1);
-  
-  // This loop now uses the pre-calculated lengthDiff
   for (let i = index; i < corrections.length; i++) {
     corrections[i].position.start += lengthDiff;
     corrections[i].position.end += lengthDiff;
   }
-  
-  if (corrections.length === 0) {
-    resetState();
-  } else {
-    currentIndex = Math.min(index, corrections.length - 1);
-    updateActiveCorrection();
-  }
+
+  if (corrections.length === 0) resetState();
+  else { currentIndex = Math.min(index, corrections.length - 1); updateActiveCorrection(); }
 }
 
 function rejectCorrection(index) {
