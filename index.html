@@ -403,22 +403,42 @@ body {
   color: var(--text-color);
 }
 
+/* Default: normal page flow (no inner scroll, no overlay stacking) */
 .editor-textarea {
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 100%;
+  position: relative;
+  top: auto;
+  left: auto;
+  height: auto;
   resize: none;
   outline: none;
   z-index: 2;
-  color: rgba(26, 26, 26, 0.7);
-  overflow: hidden;
+  color: var(--text-color);
+  overflow: hidden; /* let the PAGE scroll, not the textarea */
 }
+
+/* Only when overlay/highlights are active do we stack it over the overlay */
+.overlay-active .editor-textarea {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  overflow: hidden; /* no inner scroll while overlay is active */
+  color: transparent;
+  caret-color: var(--text-color);
+}
+
+/* Hide duplicate foreground text when overlay highlights are active */
+.overlay-active .editor-textarea::selection {
+  background: rgba(38,132,255,.25);
+}
+
+.overlay-active .highlight-overlay { display: block; }
 
 .highlight-overlay {
   position: relative;
   z-index: 1;
   pointer-events: none;
+  display: none;
 }
 
 /* ───── Suggestion Highlighting ───── */
@@ -433,6 +453,13 @@ body {
 
 .suggestion.active {
   background-color: var(--highlight-active);
+}
+
+.suggestion .badge {
+  font-size: 0.75em;
+  margin-left: 4px;
+  vertical-align: super;
+  opacity: 0.8;
 }
 
 /* ───── User Selection Highlighting ───── */
@@ -547,6 +574,24 @@ body {
   background: #ffebe9;
   border-color: var(--suggestion-red);
   color: var(--suggestion-red);
+}
+
+/* Re-generate hint box */
+.popover-tools {
+  max-width: 800px;
+  margin: 12px auto 0;
+  display: flex;
+  justify-content: center;
+}
+.regen-hint-input {
+  width: 100%;
+  max-width: 600px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 0.9rem;
+  font-family: var(--font-sans);
+  background: #fff;
 }
 
 /* ───── Summary Modal (used for proofs and simplifications) ───── */
@@ -668,6 +713,22 @@ body {
   display: block;
 }
 
+.regen-area {
+  width: 100%;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 10px;
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  background: #fff;
+  margin: 8px 0 12px;
+}
+.regen-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 /* ───── Loading & Empty State ───── */
 .loading-overlay {
   position: fixed;
@@ -708,11 +769,19 @@ body {
 /* ───── About Modal ───── */
 .about-modal {
   position: fixed;
-  top: 50%;
+  /* Instead of centering perfectly, pin near the top so header never clips */
+  top: 5vh;
   left: 50%;
-  transform: translate(-50%, -50%);
+  transform: translateX(-50%);
   width: 1200px;
   max-width: 90vw;
+
+  /* Key bits so long content is readable */
+  max-height: 90vh;
+  overflow-y: auto;
+  scrollbar-gutter: stable both-edges;
+  overscroll-behavior: contain;
+
   background: var(--bg-color);
   border: 1px solid #ccc;
   border-radius: 8px;
@@ -919,6 +988,23 @@ body {
   resize: vertical;
 }
 
+.flashcards-prefs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+}
+.flashcards-prefs select {
+  padding: 4px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: #fff;
+}
+.flashcards-prefs input[type="checkbox"] {
+  transform: translateY(1px);
+}
+
 /* Make both sides editable look consistent */
 .popover-diff del[contenteditable="true"]:focus,
 .popover-diff ins[contenteditable="true"]:focus {
@@ -967,11 +1053,16 @@ body {
         <button class="nav-btn" id="prevBtn">←</button>
         <button class="nav-btn" id="nextBtn">→</button>
         <button class="nav-btn" id="undoBtn" title="Undo Last Action (⎌)" style="display: none;">⎌</button>
+        <button class="nav-btn" id="redoBtn" title="Redo Last Undo (⇧⌘Z / Ctrl+Shift+Z)" style="display: none;">⤻</button>
     </div>
     <!-- Accept/Reject buttons are now correctly inside this container -->
     <div class="correction-actions">
         <button class="popover-btn reject" id="popoverRejectBtn">Reject</button>
         <button class="popover-btn accept" id="popoverAcceptBtn">Accept</button>
+        <button class="popover-btn" id="regenBtn" title="Re-generate variants based on hint">↻ Re‑generate</button>
+        <button class="popover-btn" id="splitBtn" title="Split this card into exactly two atomic cards">Split (2)</button>
+        <button class="popover-btn" id="reverseBtn" title="Generate a reversed version of this card">Reverse</button>
+        <button class="popover-btn" id="newFromHighlightBtn" title="Create a NEW card using this highlight and your hint">＋ New from Highlight</button>
     </div>
   </div>
   
@@ -1065,9 +1156,24 @@ body {
         </button>
       </div>
     </div>
+     <!-- ADD THIS PREFERENCES BAR -->
+    <div class="flashcards-prefs" style="margin-bottom:8px;">
+      <label for="exportStyleSelect" class="control-label">Export:</label>
+      <select id="exportStyleSelect">
+        <option value="neuracache">Neuracache</option>
+        <option value="anki">Anki</option>
+        <option value="remnote">Remnote</option>
+        <option value="raw">Raw (Front ⏎ Back)</option>
+      </select>
+
+      <label for="includeSourceCheckbox" class="control-label" style="margin-left:12px;">
+        <input type="checkbox" id="includeSourceCheckbox"> Include source material
+      </label>
+    </div>
+
     <textarea id="flashcardsOutput" class="flashcards-output"
-              placeholder="Accepted cards appear here — each line is Front[TAB]Back (ready for Anki Basic import)."
-              readonly></textarea>
+      placeholder="Export preview appears here (changes with preferences above)."
+      readonly></textarea>
   </section>
 </main>
 
@@ -1094,6 +1200,21 @@ body {
   <div id="simplificationOptions"></div>
 </div>
 
+<!-- Action Hint Modal (replaces the old 'regen' modal) -->
+<!-- Note: ensure regenOverlay, Modal, Close, HintArea etc. are all relabeled! -->
+<div class="modal-overlay" id="actionOverlay"></div>
+<div class="summary-modal" id="actionModal">
+  <button class="summary-close" id="actionClose">×</button>
+  <h2 id="actionTitle">Action</h2>
+  <p class="control-label" id="actionPrompt">Optional instructions:</p>
+  <textarea id="actionHintArea" class="regen-area" rows="4"></textarea>
+  <div class="regen-actions">
+    <button class="popover-btn" id="actionCancel">Cancel</button>
+    <button class="popover-btn accept" id="actionSubmit">Submit</button>
+  </div>
+</div>
+
+
 <!-- Loading overlay -->
 <div class="loading-overlay" id="loadingOverlay" style="display: none;">
   <div class="loading-content">
@@ -1114,31 +1235,57 @@ body {
 <div class="modal-overlay" id="aboutOverlay"></div>
 <div class="about-modal" id="aboutModal">
   <button class="summary-close" id="aboutClose">×</button>
-  <strong>"Super Spell/Style/Grammar Check"</strong> (June 2025, updated July 2025)
-  <p>Created by <strong>Kevin Bryan</strong><br>
-  Associate Professor of Strategic Management, University of Toronto<br>
-  Co-founder, All Day TA</p>
-  
-  <p>
-    <a href="https://kevinbryanecon.com" target="_blank">kevinbryanecon.com</a> | 
-    <a href="https://alldayta.com" target="_blank">alldayta.com</a><br>
-    <a href="mailto:kevin.bryan@rotman.utoronto.ca">kevin.bryan@rotman.utoronto.ca</a><br>
+
+  <h2>Flashcard Generator (September 2025)</h2>
+  <p>Created by <strong>DJ Thornton</strong><br>
+     Postdoctoral Research Fellow, Manos Institute for Cognitive Economics, UNSW Sydney</p>
+
+  <!-- CREDIT WHERE CREDIT IS DUE! -->
+  <p style="margin-top:-6px;">
+    <em>A huge thanks to <a href="https://kevinbryanecon.com/ModernEditor/" target="_blank">Kevin Bryan’s Modern Editor</a> for inspiring this project.</em>
   </p>
 
+  <p>
+    <a href="https://djthornton.org" target="_blank">djthornton.org</a><br>
+    <a href="mailto:d.thornton@unsw.edu.au">d.thornton@unsw.edu.au</a>
+  </p>
+
+  <h3>What this app does</h3>
   <ul>
-    <li><strong>Spelling and Grammar:</strong> Context and LaTeX aware spelling and grammar check. You can set your language of choice.</li>
-    <li><strong>Style:</strong> Stylistic guidelines following specific rules. Some are preloaded (<i>Literary Nonfiction is my favorite</i>, but you can add your own if you download this package). Be VERY detailed about your style preferences!</li>
-    <li><strong>Simplify:</strong> Select a paragraph or two of text and a 'simplify' button will create three simplifications retaining technical content.</li>
-    <li><strong>Proof:</strong> (Beta) Select a theorem and proof, and the 'proof' button will attempt to analyze the logical and mathematical accuracy.</li>
-   
-  <h3>Keyboard Shortcuts</h3>
-  <ul>
-    <li><strong>←/→:</strong> Navigate between corrections</li>
-    <li><strong>Enter:</strong> Accept correction (you can also edit the green text before accepting, and undo if needed)</li>
-    <li><strong>Backspace/Delete:</strong> Reject correction</li>
+    <li><strong>Generate flashcards from text:</strong> The model creates Q/A cards anchored to exact source snippets so you can trace every card back to the document.</li>
+    <li><strong>Accept / Reject cards:</strong> Quickly curate only the cards you want. Accepted cards accumulate in the panel at the bottom (ready to copy/download).</li>
   </ul>
-  If you don't use 'free models', the quality is a bit better, and the cost is still just pennies.
+
+  <h3>Editing tools on each card</h3>
+  <ul>
+    <li><strong>↻ Regenerate:</strong> Rewrites the current card using your instructions (modal). Replaces the card in place.</li>
+    <li><strong>Split (2):</strong> Splits one card into exactly two atomic cards. Replaces the original with the first split and inserts the second right after.</li>
+    <li><strong>Reverse:</strong> Creates an additional, reversed card (original stays). Avoids meta “what question would…” wording.</li>
+    <li><strong>＋ New from Highlight:</strong> Always opens a prompt box. Uses the highlighted source + current card as context to create a <em>new</em> related card (e.g., request a definition or acronym expansion).</li>
+  </ul>
+
+  <h3>Make a card from selected text</h3>
+  <ul>
+    <li><strong>Make Card:</strong> Select any text in the editor and click <em>Make Card</em> (in the left panel) to generate cards strictly from the selection (context is used only to disambiguate).</li>
+  </ul>
+
+  <h3>Keyboard shortcuts</h3>
+  <ul>
+    <li><strong>← / →</strong>: Navigate cards</li>
+    <li><strong>Enter</strong>: Accept current flashcard</li>
+    <li><strong>Backspace / Delete</strong>: Reject current flashcard</li>
+    <li><strong>⎌ (button)</strong>: Undo last action &nbsp;•&nbsp; <strong>⇧⌘Z / Ctrl+Shift+Z</strong>: Redo</li>
+    <li><strong>s</strong>: Split (immediate) &nbsp;•&nbsp; <strong>Ctrl/⌘+s</strong>: Split with modal hint</li>
+    <li><strong>r</strong>: Reverse (immediate) &nbsp;•&nbsp; <strong>Ctrl/⌘+r</strong>: Reverse with modal hint</li>
+    <li><strong>a</strong>: Regenerate (opens modal)</li>
+    <li><strong>n</strong>: New from Highlight (opens modal)</li>
+  </ul>
+
+  <p style="color:#666; font-size:0.9rem;">
+    Tips: Keep each card <em>atomic</em> (one idea on the back) and <em>univocal</em> (a single correct answer on the front). Markdown/LaTeX is supported in both fields.
+  </p>
 </div>
+
 
 <!-- File Upload Modal -->
 <div class="modal-overlay" id="fileOverlay"></div>
@@ -1155,10 +1302,33 @@ body {
 
 <!-- API Key Modal -->
 <div class="api-key-modal" id="apiKeyModal" style="display: none;">
-  <h2>Gemini API Key Required</h2>
-  <p>Please enter your Gemini API key to use this editor. Your key is stored locally on your computer. You can get a free key at <p><a href="https://aistudio.google.com/app/apikey">https://aistudio.google.com/app/apikey</a></p><p> Best quality if you unclick 'use free models' (but may cost a few cents per document and you need Google billing). The free models are still very good. If you get an error, you probably have used up your daily limit of free tokens.</p><p>
-This editor is intended for .txt and .tex. After stylistic editing, copy or download edited version back to your normal editor using buttons on the bottom right.</p>
-  <input type="text" id="apiKeyInput" placeholder="Enter your Gemini API key">
+  <h2>Model Provider</h2>
+  <p>Select a provider and enter an API key. Keys are stored locally in your browser.</p>
+
+  <label for="providerSelect" style="display:block; text-align:left; margin-bottom:6px;">Provider:</label>
+  <select id="providerSelect" style="width:100%; padding:8px; margin-bottom:12px;">
+    <option value="gemini">Gemini</option>
+    <option value="ultimateai">UltimateAI</option>
+  </select>
+
+  <div id="geminiFields">
+    <p style="margin:0 0 6px;">Gemini key:</p>
+    <input type="text" id="apiKeyInput" placeholder="Enter your Gemini API key">
+    <p style="font-size:0.85rem; color:#666; margin-top:8px;">
+      Get a key at https://aistudio.google.com/app/apikey
+    </p>
+  </div>
+
+  <div id="ultimateFields" style="display:none;">
+    <p style="margin:10px 0 6px;">UltimateAI key:</p>
+    <input type="text" id="ultimateKeyInput" placeholder="Enter your UltimateAI key">
+    <p style="margin:10px 0 6px;">UltimateAI model (e.g., gpt-4o-mini):</p>
+    <input type="text" id="ultimateModelInput" placeholder="Enter the model name">
+    <p style="font-size:0.85rem; color:#666; margin-top:8px;">
+      Base URL: https://smart.ultimateai.org/v1 — Chat Completions: /chat/completions
+    </p>
+  </div>
+
   <button id="apiKeySubmit">Continue</button>
 </div>
 
@@ -1167,6 +1337,7 @@ This editor is intended for .txt and .tex. After stylistic editing, copy or down
 let corrections = [];
 let currentIndex = -1;
 let undoStack = [];
+let redoStack = [];
 let apiKey = '';
 let selectedText = '';
 let selectedRange = null;
@@ -1217,7 +1388,28 @@ const copyFlashcardsBtn = document.getElementById('copyFlashcardsBtn');
 const downloadFlashcardsBtn = document.getElementById('downloadFlashcardsBtn');
 const depthSelect = document.getElementById('depthSelect');
 const makeCardBtn = document.getElementById('makeCardBtn');
+const regenBtn = document.getElementById('regenBtn');
+const splitBtn = document.getElementById('splitBtn');
+const reverseBtn = document.getElementById('reverseBtn');
+const providerSelect = document.getElementById('providerSelect');
+const geminiFields = document.getElementById('geminiFields');
+const ultimateFields = document.getElementById('ultimateFields');
+const ultimateKeyInput = document.getElementById('ultimateKeyInput');
+const ultimateModelInput = document.getElementById('ultimateModelInput');
+const actionOverlay  = document.getElementById('actionOverlay');
+const actionModal    = document.getElementById('actionModal');
+const actionClose    = document.getElementById('actionClose');
+const actionHintArea = document.getElementById('actionHintArea');
+const actionCancel   = document.getElementById('actionCancel');
+const actionSubmit   = document.getElementById('actionSubmit');
+const actionTitle    = document.getElementById('actionTitle');
+const actionPrompt   = document.getElementById('actionPrompt');
+const redoBtn = document.getElementById('redoBtn');
+const newFromHighlightBtn = document.getElementById('newFromHighlightBtn');
+const exportStyleSelect     = document.getElementById('exportStyleSelect');
+const includeSourceCheckbox = document.getElementById('includeSourceCheckbox');
 
+let pendingAction = null; // 'regenerate' | 'split' | 'reverse'
 
 // Hamburger elements
 const hamburgerBtn = document.getElementById('hamburgerBtn');
@@ -1271,12 +1463,13 @@ analyzeFlashcardsBtn.addEventListener('click', () => {
 
 
 copyFlashcardsBtn.addEventListener('click', () => {
-  navigator.clipboard.writeText(flashcardsOutput.value || '')
+  const text = renderExport();
+  navigator.clipboard.writeText(text || '')
     .catch(err => { console.error('Failed to copy flashcards:', err); alert('Failed to copy flashcards.'); });
 });
 
 downloadFlashcardsBtn.addEventListener('click', () => {
-  const text = flashcardsOutput.value || '';
+  const text = renderExport() || '';
   const blob = new Blob([text], { type: 'text/plain' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -1289,6 +1482,8 @@ downloadFlashcardsBtn.addEventListener('click', () => {
 });
 
 makeCardBtn.addEventListener('click', handleMakeCardFromSelection);
+
+if (redoBtn) redoBtn.addEventListener('click', handleRedo);
 
 function openHamburgerMenu() {
   hamburgerMenu.classList.add('open');
@@ -1308,12 +1503,47 @@ function closeHamburgerMenu() {
   menuOverlay.classList.remove('visible');
 }
 
+// Pure string formatters (no model calls)
+const EXPORTERS = {
+  neuracache(cards) {
+    // front #flashcard \n back \n\n
+    return cards.map(c => `${c.front} #flashcard\n${c.back}`).join('\n\n');
+  },
+  anki(cards) {
+    // Q: front \n A: back \n\n
+    return cards.map(c => `Q: ${c.front}\nA: ${c.back}`).join('\n\n');
+  },
+  remnote(cards) {
+    // front >> back \n\n
+    return cards.map(c => `${c.front} >> ${c.back}`).join('\n\n');
+  },
+  raw(cards) {
+    // front \n back \n\n
+    return cards.map(c => `${c.front}\n${c.back}`).join('\n\n');
+  }
+};
+
+// Compose final export string based on current UI prefs
+function renderExport() {
+  const styleKey = (exportStyleSelect?.value) || localStorage.getItem('exportStyle') || 'neuracache';
+  const formatter = EXPORTERS[styleKey] || EXPORTERS.neuracache;
+
+  const includeSource = (includeSourceCheckbox?.checked !== undefined)
+    ? includeSourceCheckbox.checked
+    : JSON.parse(localStorage.getItem('exportIncludeSource') || 'false');
+
+  let out = formatter(acceptedFlashcards || []);
+
+  if (includeSource) {
+    const src = documentInput.value || '';
+    out = `## Source Material\n${src}\n\n## Flashcards\n${out}`;
+  }
+  return out;
+}
+
 function updateFlashcardsOutput() {
-  // NEW FORMAT: Front \n Back \n\n
-  const text = acceptedFlashcards
-    .map(c => `${c.front}\n${c.back}`)
-    .join('\n\n');
-  if (flashcardsOutput) flashcardsOutput.value = text;
+  if (!flashcardsOutput) return;
+  flashcardsOutput.value = renderExport();
 }
 
 function generateSelectionFlashcardPrompt(selection, context, rule) {
@@ -1351,6 +1581,164 @@ ${context}
 `;
 }
 
+function generateRegenerateCardPrompt(card, hint, domainRule) {
+  const languageInstruction = getLanguageInstruction();
+  const domainFragment = (domainRule && domainRule.prompt) ? domainRule.prompt : '';
+  const currentDate = new Date();
+
+  // Grab local context around the anchored span for better phrasing
+  const fullText = documentInput.value;
+  const ctxStart = Math.max(0, card.position.start - 400);
+  const ctxEnd   = Math.min(fullText.length, card.position.end + 400);
+  const context  = fullText.substring(ctxStart, ctxEnd);
+
+  return `${languageInstruction}You are an expert study coach on ${currentDate}.
+We have an existing FLASHCARD (front/back) anchored to a source snippet. Please propose up to THREE alternative versions that better satisfy:
+- Atomicity: one coherent idea per back.
+- Univocality: front has a single unambiguous answer.
+- Keep notation precise; allow Markdown/LaTeX ($...$ or \\[ ... \\]).
+
+If the user hint is provided, follow it strictly: "${hint || '(no hint)'}".
+
+Domain guidance:
+${domainFragment}
+
+Return ONLY a JSON array of 1–3 objects with keys:
+- "source": short verbatim snippet (<=160 chars) from the DOCUMENT or CONTEXT (prefer original source).
+- "front": revised prompt/question (may include Markdown/LaTeX).
+- "back": revised answer (a single idea; may include Markdown/LaTeX).
+- "explanation": optional short rationale.
+
+DOCUMENT CONTEXT (for anchoring and wording):
+\`\`\`
+${context}
+\`\`\`
+
+CURRENT CARD:
+{
+  "source": "${(card.source || '').replace(/"/g, '\\"')}",
+  "front": "${(card.front || '').replace(/"/g, '\\"')}",
+  "back": "${(card.back || '').replace(/"/g, '\\"')}"
+}
+`;
+}
+
+function generateSplitCardPrompt(card, domainRule) {
+  const languageInstruction = getLanguageInstruction();
+  const domainFragment = (domainRule && domainRule.prompt) ? domainRule.prompt : '';
+  const currentDate = new Date();
+
+  return `${languageInstruction}You are an expert study coach on ${currentDate}.
+SPLIT the following FLASHCARD into EXACTLY TWO atomic cards. Keep univocal fronts, one-idea backs. Preserve notation; allow Markdown/LaTeX.
+
+Domain guidance:
+${domainFragment}
+
+Return ONLY a JSON array with EXACTLY TWO objects:
+[
+  { "source": "verbatim snippet (<=160 chars)",
+    "front": "univocal prompt",
+    "back": "single idea answer",
+    "explanation": "optional"
+  },
+  { ... second card ... }
+]
+
+CURRENT CARD:
+{
+  "source": "${(card.source || '').replace(/"/g, '\\"')}",
+  "front": "${(card.front || '').replace(/"/g, '\\"')}",
+  "back": "${(card.back || '').replace(/"/g, '\\"')}"
+}
+`;
+}
+
+function generateReverseCardPrompt(card, domainRule, userHint='') {
+  const languageInstruction = getLanguageInstruction();
+  const domainFragment = (domainRule && domainRule.prompt) ? domainRule.prompt : '';
+  const currentDate = new Date();
+
+  return `${languageInstruction}You are an expert study coach on ${currentDate}.
+  Create a REVERSED flashcard that asks for the ORIGINAL FRONT given the ORIGINAL BACK.
+
+  Hard constraints:
+  - The new FRONT must be a natural question a student could see on a test.
+  - Do NOT write meta-questions about "what question would..." or "given the answer".
+  - Do NOT mention "answer" or "question" explicitly.
+  - Keep fronts univocal (single correct answer). Keep backs atomic (one idea).
+  - Preserve notation; Markdown/LaTeX allowed ($...$ or \\[...\\]).
+  - If the original FRONT contains "types of X", "examples of X", or "definition of X", prefer forms like "Y and Z are both examples of what?" or "What is X?".
+
+  ${userHint ? `User hint: ${userHint}` : ''}
+
+  Domain guidance:
+  ${domainFragment}
+
+  Return ONLY a JSON object:
+  {
+    "source": "verbatim snippet (<=160 chars) from the document (prefer original source)",
+    "front":  "reversed prompt (no meta language)",
+    "back":   "single-idea answer",
+    "explanation": "optional"
+  }
+
+  ORIGINAL CARD:
+  {
+    "source": "${(card.source || '').replace(/"/g, '\\"')}",
+    "front": "${(card.front || '').replace(/"/g, '\\"')}",
+    "back": "${(card.back || '').replace(/"/g, '\\"')}"
+  }
+  `;
+}
+
+function generateNewFromHighlightPrompt(card, userHint, domainRule) {
+  const languageInstruction = getLanguageInstruction();
+  const domainFragment = (domainRule && domainRule.prompt) ? domainRule.prompt : '';
+  const currentDate = new Date();
+
+  // Local context around the anchor to help the model compose the new card
+  const fullText = documentInput.value;
+  const ctxStart = Math.max(0, card.position.start - 500);
+  const ctxEnd   = Math.min(fullText.length, card.position.end + 500);
+  const context  = fullText.substring(ctxStart, ctxEnd);
+
+  return `${languageInstruction}You are an expert study coach on ${currentDate}.
+Create a NEW flashcard based on the highlighted SOURCE and the EXISTING card shown below.
+Use the user's hint strictly to guide what new knowledge to target.
+
+Hard constraints:
+- Atomicity: the new BACK must contain a single idea.
+- Univocality: the new FRONT must imply a single correct answer.
+- Preserve notation; Markdown/LaTeX allowed.
+- Do not merely rephrase the existing card; produce a distinct, useful card.
+- Prefer fronts that could appear on a test.
+
+User hint: "${userHint || '(no hint provided)'}"
+
+Domain guidance:
+${domainFragment}
+
+Return ONLY a JSON object OR a one-element JSON array with keys:
+{
+  "source": "verbatim snippet (<=160 chars) from the DOCUMENT (prefer the same highlight if appropriate)",
+  "front":  "new prompt/question",
+  "back":   "new single-idea answer",
+  "explanation": "optional"
+}
+
+DOCUMENT CONTEXT:
+\`\`\`
+${context}
+\`\`\`
+
+EXISTING CARD:
+{
+  "source": "${(card.source || '').replace(/"/g, '\\"')}",
+  "front": "${(card.front || '').replace(/"/g, '\\"')}",
+  "back": "${(card.back || '').replace(/"/g, '\\"')}"
+}`;
+}
+
 async function handleMakeCardFromSelection() {
   if (!selectedText || !selectedRange) return;
 
@@ -1368,7 +1756,7 @@ async function handleMakeCardFromSelection() {
     const context  = fullText.substring(ctxStart, ctxEnd);
 
     const prompt = generateSelectionFlashcardPrompt(selectedText, context, chosen);
-    const results = await callGeminiAPI(prompt, model);
+    const results = await callLLMAPI(prompt, model);
 
     const arr = Array.isArray(results) ? results : [];
     if (arr.length === 0) {
@@ -1404,6 +1792,257 @@ async function handleMakeCardFromSelection() {
   }
 }
 
+async function handleRegenerateCard(hint = '', replaceCurrent = true) {
+  const card = corrections[currentIndex];
+  if (!card || card.type !== 'flashcard') return;
+
+  const chosen = window.WRITING_RULES[ruleSelect.value] || window.WRITING_RULES['flashcards_base'];
+  try {
+    loadingOverlay.style.display = 'flex';
+    loadingText.textContent = 'Re‑generating…';
+
+    const model = getModelForType('flashcard'); // your existing model picker
+    const prompt = generateRegenerateCardPrompt(card, hint, chosen); // from earlier step
+    const results = await callLLMAPI(prompt, model); // or callGeminiAPI
+
+    // Prefer first candidate if an array; accept object otherwise
+    const r = Array.isArray(results) ? results[0] : results;
+    if (!r || !r.front || !r.back) {
+      alert('No usable alternative returned.');
+      return;
+    }
+
+    const newCard = {
+      type: 'flashcard',
+      source: typeof r.source === 'string' && r.source.length ? r.source : (card.source || ''),
+      front:  r.front,
+      back:   r.back,
+      explanation: typeof r.explanation === 'string' ? r.explanation : 'Regenerated variant.',
+      position: { ...card.position }
+    };
+
+    // --- UNDO: save previous card to restore on undo ---
+    undoStack.push({
+      action: 'regenerate_replace',
+      index: currentIndex,
+      previous: { ...card }
+    });
+    undoBtn.style.display = 'flex';
+
+    redoStack.length = 0;
+    if (redoBtn) redoBtn.style.display = 'none';
+
+    // Replace the current card in place
+    corrections[currentIndex] = newCard;
+    updateActiveCorrection();
+
+  } catch (err) {
+    console.error(err);
+    alert('Re‑generate failed.');
+  } finally {
+    loadingOverlay.style.display = 'none';
+  }
+}
+
+async function handleSplitCard(userHint = '', useModal = false) {
+  const card = corrections[currentIndex];
+  if (!card || card.type !== 'flashcard') return;
+
+  const chosen = window.WRITING_RULES[ruleSelect.value] || window.WRITING_RULES['flashcards_base'];
+
+  try {
+    loadingOverlay.style.display = 'flex';
+    loadingText.textContent = 'Splitting into two…';
+
+    const model = getModelForType('flashcard');
+    const prompt = generateSplitCardPrompt(card, chosen);
+    let results = await callLLMAPI(prompt, model);
+
+    // Fallback (manual) if the model doesn't return exactly two objects
+    if (!Array.isArray(results) || results.length !== 2) {
+      const sep = promptUserForSeparator(); // crude fallback
+      if (!sep) { loadingOverlay.style.display = 'none'; return; }
+      const parts = (card.back || '').split(sep).map(s => s.trim()).filter(Boolean);
+      const two = parts.slice(0, 2);
+      results = two.map((p, i) => ({
+        source: card.source || '',
+        front:  i === 0 ? card.front : `${card.front} (part 2)`,
+        back:   p,
+        explanation: 'Manual split by separator'
+      }));
+      if (results.length !== 2) {
+        alert('Could not split into exactly two cards.');
+        return;
+      }
+    }
+
+    const normalized = results.map(obj => ({
+      type: 'flashcard',
+      source: (typeof obj.source === 'string' && obj.source.length) ? obj.source : (card.source || ''),
+      front:  (typeof obj.front  === 'string') ? obj.front  : '',
+      back:   (typeof obj.back   === 'string') ? obj.back   : '',
+      explanation: (typeof obj.explanation === 'string') ? obj.explanation : 'Split from combined card.',
+      position: { ...card.position }
+    }));
+
+    // --- UNDO: record split replacement ---
+    undoStack.push({
+      action: 'split_replace',
+      index: currentIndex,
+      previous: { ...card },
+      newCards: normalized.map(x => ({ ...x }))
+    });
+    undoBtn.style.display = 'flex';
+    redoStack.length = 0; if (redoBtn) redoBtn.style.display = 'none';
+
+    // Replace current with first, insert second after
+    corrections[currentIndex] = normalized[0];
+    corrections.splice(currentIndex + 1, 0, normalized[1]);
+
+    updateActiveCorrection();
+  } catch (err) {
+    console.error(err);
+    alert('Split failed.');
+  } finally {
+    loadingOverlay.style.display = 'none';
+  }
+}
+
+async function handleReverseCard(userHint = '', useModal = false) {
+  // We assume your "current card" is the active suggestion in corrections[currentIndex]
+  const card = corrections[currentIndex];
+  if (!card || card.type !== 'flashcard') {
+    alert('No flashcard selected to reverse.');
+    return;
+  }
+
+  const chosen = window.WRITING_RULES[ruleSelect.value] || window.WRITING_RULES['flashcards_base'] || {};
+  const model  = getModelForType('flashcard'); // if you haven’t added flashcard model mapping yet, pick one explicitly
+
+  try {
+    loadingOverlay.style.display = 'flex';
+    loadingText.textContent = 'Reversing…';
+
+    // 1) First attempt from the LLM
+    const prompt1 = generateReverseCardPrompt(card, chosen, userHint);
+    let result = await callLLMAPI(prompt1, model);
+
+    // If provider returns arrays accidentally, prefer first object
+    if (Array.isArray(result)) result = result[0];
+
+    // 2) Validate; if meta or missing, retry once with stronger hint
+    if (!result || !result.front || !result.back || looksMetaQuestion(result.front)) {
+      const prompt2 = generateReverseCardPrompt(
+        card,
+        chosen,
+        (userHint ? `${userHint}; ` : '') +
+        'DO NOT write about "questions" or "answers"; use the pattern “X and Y are examples of what?” when applicable.'
+      );
+      let second = await callLLMAPI(prompt2, model);
+      if (Array.isArray(second)) second = second[0];
+
+      if (second && second.front && second.back && !looksMetaQuestion(second.front)) {
+        result = second;
+      } else {
+        // 3) Heuristic fallback
+        result = tryHeuristicReverse(card);
+      }
+    }
+
+    if (!result || !result.front || !result.back) {
+      alert('Reverse failed to produce a useful card.');
+      return;
+    }
+
+    // Normalize → insert as a NEW suggestion right after the current one (so you can accept/reject)
+    const reversed = {
+      type: 'flashcard',
+      source: (typeof result.source === 'string' && result.source.length) ? result.source : (card.source || ''),
+      front:  (typeof result.front  === 'string') ? result.front  : '',
+      back:   (typeof result.back   === 'string') ? result.back   : '',
+      explanation: (typeof result.explanation === 'string') ? result.explanation : 'Reversed card.',
+      position: { ...card.position }
+    };
+
+    // --- UNDO payload for "insert candidates" (so you can undo/redo)
+    undoStack.push({ action: 'insert_candidates', afterIndex: currentIndex, items: [reversed] });
+    if (typeof redoStack !== 'undefined') {
+      redoStack.length = 0;
+      const redoBtn = document.getElementById('redoBtn');
+      if (redoBtn) redoBtn.style.display = 'none';
+    }
+    if (undoBtn) undoBtn.style.display = 'flex';
+
+    // Insert and focus the new candidate
+    corrections.splice(currentIndex + 1, 0, reversed);
+    currentIndex = currentIndex + 1;
+    updateActiveCorrection();
+
+  } catch (err) {
+    console.error(err);
+    alert('Reverse failed.');
+  } finally {
+    loadingOverlay.style.display = 'none';
+  }
+}
+
+async function handleNewFromHighlight(hint = '') {
+  const base = corrections[currentIndex];
+  if (!base || base.type !== 'flashcard') {
+    alert('No flashcard selected.');
+    return;
+  }
+
+  const chosen = window.WRITING_RULES[ruleSelect.value] || window.WRITING_RULES['flashcards_base'] || {};
+  const model  = getModelForType('flashcard');
+
+  try {
+    loadingOverlay.style.display = 'flex';
+    loadingText.textContent = 'Creating new card…';
+
+    const prompt = generateNewFromHighlightPrompt(base, hint, chosen);
+    let result = await callLLMAPI(prompt, model);
+
+    // Accept a single object or a single-element array
+    if (Array.isArray(result)) result = result[0];
+    if (!result || !result.front || !result.back) {
+      alert('No usable card returned.');
+      return;
+    }
+
+    const newCard = {
+      type: 'flashcard',
+      source: (typeof result.source === 'string' && result.source.length) ? result.source : (base.source || ''),
+      front:  result.front,
+      back:   result.back,
+      explanation: (typeof result.explanation === 'string') ? result.explanation : 'New card from highlight.',
+      position: { ...base.position }   // anchor to the same highlight
+    };
+
+    // Record undo as an insertion of candidates after current
+    undoStack.push({ action: 'insert_candidates', afterIndex: currentIndex, items: [newCard] });
+    undoBtn.style.display = 'flex';
+    if (redoStack) { redoStack.length = 0; if (redoBtn) redoBtn.style.display = 'none'; }
+
+    // Insert after current, and focus the new one
+    corrections.splice(currentIndex + 1, 0, newCard);
+    currentIndex = currentIndex + 1;
+    updateActiveCorrection();
+
+  } catch (err) {
+    console.error(err);
+    alert('New-from-highlight failed.');
+  } finally {
+    loadingOverlay.style.display = 'none';
+  }
+}
+
+
+function promptUserForSeparator() {
+  const s = window.prompt('Model did not return two cards.\nEnter a separator to split the back into two (e.g., ";", "and", " / ").\nLeave blank to cancel.');
+  return s && s.trim() ? s.trim() : null;
+}
+
 window.WRITING_RULES = {
   // Basic grammar and spelling check
   "grammar": {
@@ -1417,6 +2056,15 @@ window.WRITING_RULES = {
     name: "Flashcards",
     description: "Generate Q/A cards anchored to the source text",
     type: "flashcard"
+  },
+
+  "models_ultimateai": {
+  // Set your preferred UltimateAI models here (user can override via modal input)
+  "grammar":   "gpt-5",
+  "style":     "gpt-5",
+  "simplify":  "gpt-5",
+  "proof":     "claude-4-opus",
+  "flashcard": "gpt-5" // consider changing to claude-4-opus	
   },
 
   // Model specifications for different operations
@@ -1440,6 +2088,31 @@ window.WRITING_RULES = {
 document.addEventListener('DOMContentLoaded', async () => {
   // Check for API key
   checkApiKey();
+
+  // Restore previous choice if set
+  const savedProvider = localStorage.getItem('provider') || 'gemini';
+  if (providerSelect) providerSelect.value = savedProvider;
+  toggleProviderFields(savedProvider);
+
+  if (ultimateModelInput) {
+    ultimateModelInput.value = localStorage.getItem('ultimateModel') || '';
+  }
+
+  // Export prefs defaults and load
+  if (exportStyleSelect) {
+    exportStyleSelect.value = localStorage.getItem('exportStyle') || 'neuracache';
+    exportStyleSelect.addEventListener('change', () => {
+      localStorage.setItem('exportStyle', exportStyleSelect.value);
+      updateFlashcardsOutput();
+    });
+  }
+  if (includeSourceCheckbox) {
+    includeSourceCheckbox.checked = JSON.parse(localStorage.getItem('exportIncludeSource') || 'false');
+    includeSourceCheckbox.addEventListener('change', () => {
+      localStorage.setItem('exportIncludeSource', includeSourceCheckbox.checked);
+      updateFlashcardsOutput();
+    });
+  }
   
   loadRules();
 
@@ -1489,6 +2162,7 @@ In conclusion, this study have shown that the landscape of NLP is rapidly evolvi
 
 \\end{document}`;
   
+  adjustTextareaHeight();
   updateHighlightOverlay();
 
   // Sync scroll
@@ -1503,6 +2177,10 @@ In conclusion, this study have shown that the landscape of NLP is rapidly evolvi
           resetState();
       }
       updateHighlightOverlay();
+    // Auto-size only when overlay is off
+      if (!(corrections.length > 0) && !selectionMode) {
+        adjustTextareaHeight();
+      } 
   });
   
   // Handle text selection
@@ -1571,6 +2249,16 @@ dropZone.addEventListener('dragleave', handleDragLeave);
 dropZone.addEventListener('drop', handleDrop);
 
 document.addEventListener('keydown', (e) => {
+  // If any modal open, ignore global shortcuts
+  const anyModalOpen =
+    (actionModal && actionModal.classList.contains('visible')) ||
+    (simplificationModal && simplificationModal.classList.contains('visible')) ||
+    (summaryModal && summaryModal.classList.contains('visible')) ||
+    (aboutModal && aboutModal.classList.contains('visible')) ||
+    (fileModal && fileModal.classList.contains('visible')) ||
+    (apiKeyModal && apiKeyModal.style.display === 'block');
+  if (anyModalOpen) return;
+
   // Check if we're editing the corrected text
   if (document.activeElement === popoverCorrected || document.activeElement === popoverOriginal) {
     // Only allow normal typing, prevent our shortcuts
@@ -1583,7 +2271,71 @@ document.addEventListener('keydown', (e) => {
     }
     return;
   }
-  
+
+  // Handle Undo (⌘/Ctrl + Z) for our action stack
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+    if (undoStack.length > 0) {
+      e.preventDefault();   // stop the textarea's native undo
+      handleUndo();
+      return;
+    }
+    // If no app-level undo, fall through to native behavior
+  }
+
+  // Redo (Cmd/Ctrl+Shift+Z)
+  if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'z') {
+    if (redoStack.length > 0) {
+      e.preventDefault();
+      handleRedo();
+      return;
+    }
+  }
+
+  // Only when a suggestion is active
+  if (corrections.length > 0 && currentIndex > -1) {
+    const k = e.key.toLowerCase();
+
+    // Prevent browser Save dialog when we want Split modal
+    if ((e.ctrlKey || e.metaKey) && k === 's') {
+      e.preventDefault();
+      openActionModal('split');
+      return;
+    }
+
+    // Split (s)
+    if (!e.ctrlKey && !e.metaKey && k === 's') {
+      e.preventDefault();
+      handleSplitCard('');
+      return;
+    }
+
+    // Reverse (r) — Ctrl/⌘ for modal
+    if ((e.ctrlKey || e.metaKey) && k === 'r') {
+      e.preventDefault();
+      openActionModal('reverse');
+      return;
+    }
+    if (!e.ctrlKey && !e.metaKey && k === 'r') {
+      e.preventDefault();
+      handleReverseCard('');
+      return;
+    }
+
+    // Regenerate (a) always opens modal
+    if (!e.ctrlKey && !e.metaKey && k === 'a') {
+      e.preventDefault();
+      openActionModal('regenerate');
+      return;
+    }
+
+    // New-from-highlight (n) — always opens modal; avoid Ctrl/⌘+N (browser new window)
+    if (!e.ctrlKey && !e.metaKey && k === 'n') {
+      e.preventDefault();
+      openActionModal('new_from_highlight');
+      return;
+    }
+  }
+
   if (e.key === 'ArrowRight') {
     e.preventDefault();
     nextBtn.click();
@@ -1628,25 +2380,53 @@ document.addEventListener('click', (e) => {
 });
 
 function checkApiKey() {
-  // Check if GEMINI key exists in keys.js
-  if (typeof window.GEMINI === 'undefined' || !window.GEMINI) {
-    // Show API key modal
-    apiKeyModal.style.display = 'block';
-    loadingOverlay.style.display = 'flex';
-    loadingOverlay.style.background = 'rgba(0, 0, 0, 0.5)';
-    loadingText.style.display = 'none';
+  const provider = localStorage.getItem('provider') || 'gemini';
+  const hasGemini = typeof window.GEMINI !== 'undefined' && !!window.GEMINI;
+  const storedGemini = localStorage.getItem('geminiKey') || '';
+  const storedUltimate = localStorage.getItem('ultimateKey') || '';
+
+  // Fill fields if present
+  if (providerSelect) providerSelect.value = provider;
+  toggleProviderFields(provider);
+
+  if (provider === 'gemini') {
+    if (!hasGemini && !storedGemini) {
+      apiKeyModal.style.display = 'block';
+      loadingOverlay.style.display = 'flex';
+      loadingOverlay.style.background = 'rgba(0, 0, 0, 0.5)';
+      loadingText.style.display = 'none';
+    }
+  } else {
+    if (!storedUltimate) {
+      apiKeyModal.style.display = 'block';
+      loadingOverlay.style.display = 'flex';
+      loadingOverlay.style.background = 'rgba(0, 0, 0, 0.5)';
+      loadingText.style.display = 'none';
+    }
   }
 }
 
 function saveApiKey() {
-  const key = apiKeyInput.value.trim();
-  if (key) {
-    window.GEMINI = key;
-    apiKeyModal.style.display = 'none';
-    loadingOverlay.style.display = 'none';
-    loadingOverlay.style.background = 'rgba(255, 255, 248, 0.9)';
-    loadingText.style.display = 'block';
+  const provider = providerSelect ? providerSelect.value : 'gemini';
+  localStorage.setItem('provider', provider);
+
+  if (provider === 'gemini') {
+    const key = apiKeyInput.value.trim();
+    if (key) {
+      window.GEMINI = key;
+      localStorage.setItem('geminiKey', key);
+    }
+  } else {
+    const uKey = ultimateKeyInput.value.trim();
+    const uModel = ultimateModelInput.value.trim();
+    if (uKey) localStorage.setItem('ultimateKey', uKey);
+    if (uModel) localStorage.setItem('ultimateModel', uModel);
   }
+
+  apiKeyModal.style.display = 'none';
+  loadingOverlay.style.display = 'none';
+  loadingOverlay.style.background = 'rgba(255, 255, 248, 0.9)';
+  loadingText.style.display = 'block';
 }
 
   function loadRules() {
@@ -1744,10 +2524,22 @@ function getLanguageInstruction() {
 }
 
 function getModelForType(type) {
-    const useFreeModels = document.getElementById('freeModelsCheckbox').checked;
-    const rulesRoot = window.WRITING_RULES || {};          // guard against missing object
-    const models = useFreeModels ? rulesRoot.models_free : rulesRoot.models;
-    return (models && models[type]) ? models[type] : 'gemini-2.0-flash';
+  const provider = localStorage.getItem('provider') || 'gemini';
+  if (provider === 'ultimateai') {
+    // If user typed a specific UltimateAI model, prefer it for flashcards
+    if (type === 'flashcard') {
+      const userModel = localStorage.getItem('ultimateModel') || (ultimateModelInput ? ultimateModelInput.value.trim() : '');
+      if (userModel) return userModel;
+    }
+    const m = (window.WRITING_RULES.models_ultimateai || {})[type];
+    return m || 'gpt-4o-mini';
+  }
+
+  // Gemini path
+  const useFreeModels = document.getElementById('freeModelsCheckbox').checked;
+  const rulesRoot = window.WRITING_RULES || {};
+  const models = useFreeModels ? rulesRoot.models_free : rulesRoot.models;
+  return (models && models[type]) ? models[type] : 'gemini-2.0-flash';
 }
 
 function extractLatexContent(text) {
@@ -1771,48 +2563,178 @@ function extractLatexContent(text) {
 }
 
 function handleUndo() {
-    if (undoStack.length === 0) return; // Nothing to undo
+  if (undoStack.length === 0) return;
+  const last = undoStack.pop();
 
-    const lastAction = undoStack.pop();
-
-    if (lastAction.action === 'accept_card') {
-    const i = acceptedFlashcards.findIndex(c =>
-      c.front === lastAction.card.front && c.back === lastAction.card.back
-    );
+  // Card accepts (remove from bin; restore suggestion)
+  if (last.action === 'accept_card') {
+    const { index, correction, card } = last;
+    const i = acceptedFlashcards.findIndex(c => c.front === card.front && c.back === card.back);
     if (i !== -1) acceptedFlashcards.splice(i, 1);
     updateFlashcardsOutput();
+    corrections.splice(index, 0, correction);
+    currentIndex = index;
 
-    corrections.splice(lastAction.index, 0, lastAction.correction);
-    currentIndex = lastAction.index;
+    // Push redo payload
+    redoStack.push({ action: 'accept_card', index, correction, card });
+    const redoBtn = document.getElementById('redoBtn');
+    if (redoBtn) redoBtn.style.display = 'flex';
+
     updateActiveCorrection();
-
     if (undoStack.length === 0) undoBtn.style.display = 'none';
     return;
-    }
+  }
 
-    // Restore the text content to exactly what it was before the action
-    documentInput.value = lastAction.textBefore;
+  // Card rejects (reinsert suggestion)
+  if (last.action === 'reject_card') {
+    const { index, correction } = last;
+    corrections.splice(index, 0, correction);
+    currentIndex = index;
 
-    // Re-insert the correction object back into the corrections array at its original index
-    corrections.splice(lastAction.index, 0, lastAction.correction);
+    redoStack.push({ action: 'reject_card', index });
+    document.getElementById('redoBtn').style.display = 'flex';
 
-    if (lastAction.lengthDiff && lastAction.lengthDiff !== 0) {
-        for (let i = lastAction.index + 1; i < corrections.length; i++) {
-            corrections[i].position.start -= lastAction.lengthDiff;
-            corrections[i].position.end -= lastAction.lengthDiff;
-        }
-    }
-    
-    // Set the current index to the newly restored correction
-    currentIndex = lastAction.index;
-
-    // Refresh the entire UI to reflect the undone state
     updateActiveCorrection();
+    if (undoStack.length === 0) undoBtn.style.display = 'none';
+    return;
+  }
 
-    // If the undo stack is now empty, hide the button
-    if (undoStack.length === 0) {
-        undoBtn.style.display = 'none';
+  // Regenerate replace (restore previous)
+  if (last.action === 'regenerate_replace') {
+    const { index, previous, nextCard } = last;
+    corrections[index] = previous;
+    currentIndex = index;
+
+    redoStack.push({ action: 'regenerate_replace', index, previous, nextCard });
+    document.getElementById('redoBtn').style.display = 'flex';
+
+    updateActiveCorrection();
+    if (undoStack.length === 0) undoBtn.style.display = 'none';
+    return;
+  }
+
+  // Insert candidates (split/reverse) — remove them
+  if (last.action === 'insert_candidates') {
+    const { afterIndex, items } = last;
+    corrections.splice(afterIndex + 1, items.length);
+    currentIndex = afterIndex;
+
+    redoStack.push({ action: 'insert_candidates', afterIndex, items });
+    document.getElementById('redoBtn').style.display = 'flex';
+
+    updateActiveCorrection();
+    if (undoStack.length === 0) undoBtn.style.display = 'none';
+    return;
+  }
+
+  // Split replace — restore original and remove the two new cards
+  if (last.action === 'split_replace') {
+    const { index, previous, newCards } = last;
+    // Remove the two new cards and put the original back
+    corrections.splice(index, 2, previous);
+    currentIndex = index;
+
+    // Redo payload: re-apply the split replacement
+    redoStack.push({ action: 'split_replace', index, previous, newCards });
+    const rb = document.getElementById('redoBtn'); if (rb) rb.style.display = 'flex';
+
+    updateActiveCorrection();
+    if (undoStack.length === 0) undoBtn.style.display = 'none';
+    return;
+  }
+
+  // Legacy text edit (grammar/style accept)
+  documentInput.value = last.textBefore;
+  corrections.splice(last.index, 0, last.correction);
+  if (last.lengthDiff) {
+    for (let i = last.index + 1; i < corrections.length; i++) {
+      corrections[i].position.start -= last.lengthDiff;
+      corrections[i].position.end   -= last.lengthDiff;
     }
+  }
+  currentIndex = last.index;
+
+  // Prepare redo payload for legacy edit
+  const editedText = popoverCorrected.textContent || '';
+  redoStack.push({ action: 'legacy_text', index: last.index, correction: last.correction, editedText, _undoPayload: last });
+  document.getElementById('redoBtn').style.display = 'flex';
+
+  updateActiveCorrection();
+  if (undoStack.length === 0) undoBtn.style.display = 'none';
+}
+
+
+function handleRedo() {
+  if (redoStack.length === 0) return;
+  const next = redoStack.pop();
+
+  // Mirror the forward actions you support.
+  if (next.action === 'accept_card') {
+    // Apply accept again
+    const { index, correction, card } = next;
+    // Remove the suggestion at index (if it exists at index; else find it)
+    const idx = (index >= 0 && index < corrections.length && corrections[index] === correction)
+      ? index
+      : corrections.findIndex(c => c === correction);
+    if (idx !== -1) {
+      acceptedFlashcards.push({ front: card.front, back: card.back });
+      updateFlashcardsOutput();
+      corrections.splice(idx, 1);
+      currentIndex = Math.min(idx, corrections.length - 1);
+      undoStack.push({ action: 'accept_card', correction, index: idx, card, textBefore: documentInput.value });
+      undoBtn.style.display = 'flex';
+    }
+  } else if (next.action === 'reject_card') {
+    // Re-apply reject (remove suggestion again)
+    const { index } = next;
+    if (index >= 0 && index < corrections.length) {
+      const removed = corrections.splice(index, 1)[0];
+      undoStack.push({ action: 'reject_card', correction: removed, index, textBefore: documentInput.value });
+      undoBtn.style.display = 'flex';
+      currentIndex = Math.min(index, corrections.length - 1);
+    }
+  } else if (next.action === 'regenerate_replace') {
+    // Re-apply replacement (use 'next' card)
+    const { index, previous, nextCard } = next;
+    const prev = corrections[index];
+    corrections[index] = nextCard;
+    undoStack.push({ action: 'regenerate_replace', index, previous: prev, nextCard });
+    undoBtn.style.display = 'flex';
+    currentIndex = index;
+  } else if (next.action === 'insert_candidates') {
+    // Reinsert newly created suggestions (split/reverse)
+    const { afterIndex, items } = next;
+    corrections.splice(afterIndex + 1, 0, ...items);
+    undoStack.push({ action: 'insert_candidates', afterIndex, items });
+    undoBtn.style.display = 'flex';
+    currentIndex = afterIndex + 1;
+  } else if (next.action === 'split_replace') {
+    const { index, previous, newCards } = next;
+    const prevAtIndex = corrections[index];
+    // Apply split again
+    corrections.splice(index, 1, newCards[0]);
+    corrections.splice(index + 1, 0, newCards[1]);
+
+    undoStack.push({ action: 'split_replace', index, previous: prevAtIndex, newCards });
+    undoBtn.style.display = 'flex';
+    currentIndex = index;
+   } else {
+    // Legacy text edit redo (grammar/style)
+    const { index, correction, editedText } = next;
+    let currentText = documentInput.value;
+    const len = correction.position.end - correction.position.start;
+    documentInput.value = currentText.substring(0, correction.position.start) + editedText +
+                          currentText.substring(correction.position.start + len);
+    undoStack.push(next._undoPayload); // symmetric payload saved when pushing redo
+    undoBtn.style.display = 'flex';
+    currentIndex = Math.min(index, corrections.length - 1);
+  }
+
+  if (redoStack.length === 0) {
+    const redoBtn = document.getElementById('redoBtn');
+    if (redoBtn) redoBtn.style.display = 'none';
+  }
+  updateActiveCorrection();
 }
 
 function splitTextIntoChunks(text, maxChunkSize = 30000) {
@@ -1981,125 +2903,180 @@ ${fullDocument}
 `;
 }
 
-async function callGeminiAPI(prompt, model, retryCount = 0) {
-    let apiKey = window.GEMINI || '';
-    
-    if (!apiKey) {
-      throw new Error(`API key is missing. Please ensure it's defined.`);
-    }
+function toggleProviderFields(provider) {
+  if (!geminiFields || !ultimateFields) return;
+  if (provider === 'ultimateai') {
+    geminiFields.style.display = 'none';
+    ultimateFields.style.display = 'block';
+    // The "Use free models" toggle is Gemini-specific; hide if not Gemini
+    const freeBox = document.getElementById('freeModelsCheckbox');
+    if (freeBox) freeBox.parentElement.style.display = 'none';
+  } else {
+    geminiFields.style.display = 'block';
+    ultimateFields.style.display = 'none';
+    const freeBox = document.getElementById('freeModelsCheckbox');
+    if (freeBox) freeBox.parentElement.style.display = 'flex';
+  }
+}
+if (providerSelect) {
+  providerSelect.addEventListener('change', () => {
+    localStorage.setItem('provider', providerSelect.value);
+    toggleProviderFields(providerSelect.value);
+  });
+}
 
-    const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+function openActionModal(kind, preset='') {
+  pendingAction = kind;
+  actionTitle.textContent = kind === 'split' ? 'Split Card (Optional Hint)'
+                        : kind === 'reverse' ? 'Reverse Card (Optional Hint)'
+                        : 'Regenerate Card';
+  actionHintArea.value = preset || '';
+  actionModal.classList.add('visible');
+  actionOverlay.classList.add('visible');
+  setTimeout(() => actionHintArea.focus(), 0);
+}
+function closeActionModal() {
+  pendingAction = null;
+  actionModal.classList.remove('visible');
+  actionOverlay.classList.remove('visible');
+}
 
+if (actionClose)   actionClose.addEventListener('click', closeActionModal);
+if (actionCancel)  actionCancel.addEventListener('click', closeActionModal);
+if (actionOverlay) actionOverlay.addEventListener('click', closeActionModal);
+
+// Submit
+if (actionSubmit) actionSubmit.addEventListener('click', () => {
+  const hint = (actionHintArea.value || '').trim();
+  if (pendingAction === 'regenerate') handleRegenerateCard(hint, /*replaceCurrent=*/true);
+  if (pendingAction === 'split')      handleSplitCard(hint, /*useModal=*/true);
+  if (pendingAction === 'reverse')    handleReverseCard(hint, /*useModal=*/true);
+  if (pendingAction === 'new_from_highlight') handleNewFromHighlight((actionHintArea.value || '').trim());
+  closeActionModal();
+});
+
+// Buttons (Ctrl/⌘ opens modal; normal click immediate)
+if (splitBtn) splitBtn.addEventListener('click', (e) => {
+  (e.ctrlKey || e.metaKey) ? openActionModal('split') : handleSplitCard('');
+});
+if (reverseBtn) reverseBtn.addEventListener('click', (e) => {
+  (e.ctrlKey || e.metaKey) ? openActionModal('reverse') : handleReverseCard('');
+});
+if (regenBtn) regenBtn.addEventListener('click', () => openActionModal('regenerate'));
+if (newFromHighlightBtn) newFromHighlightBtn.addEventListener('click', () => openActionModal('new_from_highlight'));
+
+// Temporary alias until provider switch lands
+// async function callLLMAPI(prompt, model, retryCount = 0) {
+//  return callGeminiAPI(prompt, model, retryCount);
+// }
+
+async function callLLMAPI(prompt, model, retryCount = 0) {
+  const provider = localStorage.getItem('provider') || 'gemini';
+
+  if (provider === 'ultimateai') {
+    // --- UltimateAI (OpenAI-style chat completions) ---
+    const key = localStorage.getItem('ultimateKey') || (ultimateKeyInput ? ultimateKeyInput.value.trim() : '');
+    if (!key) throw new Error('UltimateAI key missing.');
+
+    const API_URL = 'https://smart.ultimateai.org/v1/chat/completions';
     const payload = {
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        responseMimeType: "application/json",
-        temperature: 0.2,
-      }
+      model: model,
+      messages: [
+        { role: 'system', content: 'You are a precise assistant. Return ONLY valid JSON.' },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.2
+      // Avoid response_format forcing objects because we often want arrays
     };
 
     try {
       const response = await fetch(API_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+        body: JSON.stringify(payload)
       });
-
       if (!response.ok) {
-          const error = await response.json();
-          console.error("Gemini API Error Response:", error);
-          
-          // Check if it's a rate limit error
-          if (response.status === 429 || (error.error && error.error.message && error.error.message.includes('quota'))) {
-            if (retryCount === 0) {
-              // First retry - wait 30 seconds
-              console.log('Rate limit hit, retrying in 30 seconds...');
-              await new Promise(resolve => setTimeout(resolve, 30000));
-              return callGeminiAPI(prompt, model, 1);
-            }
-          }
-          
-          throw new Error(error.error?.message || `API Error: ${response.status}`);
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error?.message || `UltimateAI API error ${response.status}`);
       }
-
       const data = await response.json();
-      console.log("Full response from Gemini API:", data);
-      if (data.usageMetadata) {
-        console.log(
-          `%cGemini API Usage%c\nInput Tokens: %c${data.usageMetadata.promptTokenCount}%c\nOutput Tokens: %c${data.usageMetadata.candidatesTokenCount}%c\nTotal Tokens: %c${data.usageMetadata.totalTokenCount}`,
-          'font-weight: bold; color: #1a1a1a; background-color: #fcd0b1; padding: 2px 6px; border-radius: 3px;', // Style for the title
-          '', // Reset style
-          'color: blue;', // Style for input tokens
-          '', // Reset
-          'color: green;', // Style for output tokens
-          '', // Reset
-          'color: purple; font-weight: bold;' // Style for total tokens
-        );
+      const content = data?.choices?.[0]?.message?.content;
+      if (!content) throw new Error('UltimateAI response missing content.');
+      const parsed = parseJSONLoose(content);
+      if (parsed !== null) return parsed;
+      throw new Error('Failed to parse any valid JSON from the UltimateAI response.');
+    } catch (e) {
+      if (retryCount === 0) {
+        console.log('UltimateAI error, retrying once…', e.message);
+        await new Promise(r => setTimeout(r, 2000));
+        return callLLMAPI(prompt, model, 1);
       }
-
-      const candidate = data.candidates && data.candidates[0];
-
-      if (!candidate || !candidate.content || !candidate.content.parts || candidate.content.parts.length === 0) {
-          console.error("API RESPONSE MALFORMED: 'content.parts' is missing.", candidate);
-          throw new Error(`Analysis failed. API response was malformed. Finish Reason: ${candidate?.finishReason}`);
-      }
-
-      const responseText = candidate.content.parts[0].text;
-      
-      // Try to parse the response
-      try {
-          const parsed = JSON.parse(responseText);
-          return parsed;
-      } catch (e) {
-          // The whole string is not valid JSON. Try to salvage it.
-          console.warn("Could not parse the entire API response as valid JSON. Attempting to salvage individual objects...");
-          console.log("Problematic text:", responseText);
-      }
-      
-      // Salvage Strategy: Treat the text as a stream of objects.
-      const salvagedObjects = [];
-      const objectRegex = /\{(?:[^{}]|R)*\}/g;
-      const potentialObjects = responseText.match(objectRegex);
-
-      if (potentialObjects) {
-          potentialObjects.forEach(potentialJson => {
-              try {
-                  const parsedObject = JSON.parse(potentialJson);
-                  
-                  // Add a basic check to see if it has the required keys for a correction
-                  if (parsedObject.original && parsedObject.corrected) {
-                      salvagedObjects.push(parsedObject);
-                  } else if (parsedObject.same_length || parsedObject.overall || parsedObject.is_valid) {
-                      // It might be a summary or simplification object
-                      salvagedObjects.push(parsedObject);
-                  } else {
-                      console.warn("Salvaged object was missing required keys:", parsedObject);
-                  }
-
-              } catch (e) {
-                  console.warn("Skipping a malformed JSON object within the response:", potentialJson);
-              }
-          });
-      }
-
-      if (salvagedObjects.length > 0) {
-          if(salvagedObjects.length === 1 && (salvagedObjects[0].same_length || salvagedObjects[0].overall || salvagedObjects[0].is_valid)) {
-              return salvagedObjects[0];
-          }
-          return salvagedObjects;
-      }
-
-      throw new Error("Failed to parse or salvage any valid JSON from the API response.");
-      
-    } catch (error) {
-      // If it's a network error and we haven't retried yet, retry once
-      if (retryCount === 0 && error.message.includes('fetch')) {
-        console.log('Network error, retrying in 30 seconds...');
-        await new Promise(resolve => setTimeout(resolve, 30000));
-        return callGeminiAPI(prompt, model, 1);
-      }
-      throw error;
+      throw e;
     }
+  }
+
+  // --- Gemini path (unchanged behavior) ---
+  let gkey = window.GEMINI || localStorage.getItem('geminiKey') || '';
+  if (!gkey) throw new Error('Gemini key missing.');
+
+  const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${gkey}`;
+  const payload = {
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { responseMimeType: 'application/json', temperature: 0.2 }
+  };
+
+  try {
+    const response = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      if (response.status === 429 && retryCount === 0) {
+        await new Promise(r => setTimeout(r, 30000)); // rate limit backoff
+        return callLLMAPI(prompt, model, 1);
+      }
+      throw new Error(error.error?.message || `Gemini API error ${response.status}`);
+    }
+    const data = await response.json();
+    const part = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!part) throw new Error('Gemini response malformed.');
+    const parsed = parseJSONLoose(part);
+    if (parsed !== null) return parsed;
+    throw new Error('Failed to parse any valid JSON from the Gemini response.');
+  } catch (e) {
+    if (retryCount === 0 && String(e.message || '').includes('fetch')) {
+      await new Promise(r => setTimeout(r, 30000));
+      return callLLMAPI(prompt, model, 1);
+    }
+    throw e;
+  }
+}
+
+function parseJSONLoose(text) {
+  if (!text || typeof text !== 'string') return null;
+
+  // 1) Code fences
+  const fence = text.match(/```json\s*([\s\S]*?)```/i) || text.match(/```\s*([\s\S]*?)```/);
+  if (fence) {
+    try { return JSON.parse(fence[1]); } catch {}
+  }
+
+  // 2) Direct parse
+  try { return JSON.parse(text); } catch {}
+
+  // 3) Bracket cropping: get biggest {...} or [...]
+  const firstObj = text.indexOf('{');
+  const lastObj  = text.lastIndexOf('}');
+  const firstArr = text.indexOf('[');
+  const lastArr  = text.lastIndexOf(']');
+
+  const candidates = [];
+  if (firstArr !== -1 && lastArr > firstArr) candidates.push(text.slice(firstArr, lastArr + 1));
+  if (firstObj !== -1 && lastObj > firstObj) candidates.push(text.slice(firstObj, lastObj + 1));
+
+  for (const c of candidates) {
+    try { return JSON.parse(c); } catch {}
+  }
+
+  return null;
 }
 
 async function handleAnalysis() {
@@ -2138,7 +3115,7 @@ async function handleAnalysis() {
       loadingText.textContent = `Analyzing part ${i + 1} of ${chunks.length}...`;
       
       const prompt = generatePrompt(chunks[i], selectedRule);
-      const results = await callGeminiAPI(prompt, model);
+      const results = await callLLMAPI(prompt, model);
       
       if (Array.isArray(results)) {
         allCorrections.push(...results);
@@ -2209,7 +3186,7 @@ async function handleSimplification() {
     const context = fullText.substring(contextStart, contextEnd);
     
     const prompt = generateSimplificationPrompt(selectedText, context);
-    const result = await callGeminiAPI(prompt, model);
+    const result = await callLLMAPI(prompt, model);
     
     // Display simplification options in modal
     displaySimplifications(result);
@@ -2233,7 +3210,7 @@ async function handleProofCheck() {
     const fullText = documentInput.value;
     
     const prompt = generateProofCheckPrompt(selectedText, fullText);
-    const result = await callGeminiAPI(prompt, model);
+    const result = await callLLMAPI(prompt, model);
     
     // Display proof check results in summary modal
     displayProofCheck(result);
@@ -2367,48 +3344,80 @@ function closeSummaryModal() {
 
 function updateHighlightOverlay() {
   const currentText = documentInput.value;
+  const needOverlay = (selectionMode && selectedRange) || (corrections.length > 0);
+
+  if (!needOverlay) {
+    // Overlay fully off
+    highlightOverlay.innerHTML = '';
+    highlightOverlay.style.display = 'none';
+    document.getElementById('mainContent')?.classList.remove('overlay-active');
+
+    // Let the textarea size to its content in normal mode
+    documentInput.style.height = 'auto';
+    adjustTextareaHeight();
+    return;
+  }
+
+  // Overlay on
+  highlightOverlay.style.display = 'block';
+  document.getElementById('mainContent')?.classList.add('overlay-active');
+
+  // --- GROUP corrections by anchor (kept from your current version) ---
+  const groupsMap = new Map();
+  corrections.forEach((c, i) => {
+    if (!c.position) return;
+    const key = `${c.position.start}:${c.position.end}`;
+    if (!groupsMap.has(key)) groupsMap.set(key, { start: c.position.start, end: c.position.end, idxs: [] });
+    groupsMap.get(key).idxs.push(i);
+  });
+  const groups = Array.from(groupsMap.values()).sort((a,b) => (a.start - b.start) || (a.end - b.end));
+
   let html = '';
   let lastPos = 0;
-  
-  // Handle user selection first
+
+  // User selection first
   if (selectionMode && selectedRange) {
     html += escapeHtml(currentText.substring(0, selectedRange.start));
     html += `<mark class="user-selection">${escapeHtml(currentText.substring(selectedRange.start, selectedRange.end))}</mark>`;
     lastPos = selectedRange.end;
   }
-  
-  // Then handle corrections
-  if (corrections.length > 0) {
-    corrections.forEach((correction, index) => {
-      // Skip if this overlaps with user selection
-      if (selectionMode && selectedRange && 
-          correction.position.start < selectedRange.end && 
-          correction.position.end > selectedRange.start) {
-        return;
-      }
-      
-      html += escapeHtml(currentText.substring(lastPos, correction.position.start));
-      
-      const originalText = currentText.substring(correction.position.start, correction.position.end);
-      html += `<mark class="suggestion" data-index="${index}">${escapeHtml(originalText)}</mark>`;
-      
-      lastPos = correction.position.end;
-    });
+
+  // Grouped suggestions
+  for (const g of groups) {
+    if (selectionMode && selectedRange && g.start < selectedRange.end && g.end > selectedRange.start) continue;
+    html += escapeHtml(currentText.substring(lastPos, g.start));
+    const originalText = currentText.substring(g.start, g.end);
+    const firstIndex = g.idxs[0];
+    const groupAttr = g.idxs.join(',');
+    html += `<mark class="suggestion" data-index="${firstIndex}" data-group="${groupAttr}">${escapeHtml(originalText)}${
+      g.idxs.length > 1 ? `<sup class="badge">×${g.idxs.length}</sup>` : ''
+    }</mark>`;
+    lastPos = g.end;
   }
-  
+
   html += escapeHtml(currentText.substring(lastPos));
   highlightOverlay.innerHTML = html;
+
+  // Match textarea height to overlay height while overlay is active
   documentInput.style.height = highlightOverlay.offsetHeight + 'px';
 
-  // Add click listeners to suggestion marks
+  // Click to cycle within group
   document.querySelectorAll('.suggestion').forEach(mark => {
     mark.addEventListener('click', (e) => {
-      const index = parseInt(e.target.dataset.index, 10);
-      currentIndex = index;
+      const group = (e.currentTarget.dataset.group || '')
+        .split(',').map(n => parseInt(n,10)).filter(n => !isNaN(n));
+      if (group.length <= 1) {
+        currentIndex = parseInt(e.currentTarget.dataset.index, 10);
+      } else {
+        const pos = group.indexOf(currentIndex);
+        const next = (pos === -1 || pos === group.length - 1) ? group[0] : group[pos + 1];
+        currentIndex = next;
+      }
       updateActiveCorrection();
     });
   });
 }
+
 
 function escapeHtml(text) {
   if (typeof text !== 'string') return '';
@@ -2420,6 +3429,46 @@ function escapeHtml(text) {
     .replace(/'/g, "&#039;");
 }
 
+function adjustTextareaHeight() {
+  // Auto-size the textarea when overlay is not active
+  documentInput.style.height = 'auto';
+  documentInput.style.height = documentInput.scrollHeight + 'px';
+}
+
+// --- Reverse-card helpers ---
+function looksMetaQuestion(s) {
+  if (!s) return false;
+  const t = s.toLowerCase();
+  return /what question|which question|would give the answer|given the answer|answer would be/.test(t);
+}
+
+function tryHeuristicReverse(card) {
+  // Patterns: "types of X", "examples of X"
+  const front = (card.front || '').toLowerCase();
+  const m1 = front.match(/types?\s+of\s+(.+?)[\.\?]*$/i);
+  const m2 = front.match(/examples?\s+of\s+(.+?)[\.\?]*$/i);
+  const concept = (m1 && m1[1]) || (m2 && m2[1]) || null;
+
+  if (concept) {
+    const examples = (card.back || '').replace(/\s+/g, ' ').trim();
+    const frontRev = `${examples} are ${m2 ? 'examples' : 'types'} of what?`;
+    return {
+      source: card.source || '',
+      front: frontRev,
+      back: concept.trim(),
+      explanation: 'Heuristic reverse from "types/examples of X".'
+    };
+  }
+  // Fallback generic swap if nothing better
+  return {
+    source: card.source || '',
+    front: (card.back || '').trim(),
+    back: (card.front || '').trim(),
+    explanation: 'Quick reverse (swap) due to unrecognized pattern.'
+  };
+}
+
+
 function updateActiveCorrection() {
     if (currentIndex < 0 || currentIndex >= corrections.length) {
         hidePopover();
@@ -2428,8 +3477,12 @@ function updateActiveCorrection() {
 
     updateHighlightOverlay();
     requestAnimationFrame(() => {
-       const activeMark = highlightOverlay.querySelector(`.suggestion[data-index="${currentIndex}"]`);
-
+       let activeMark = highlightOverlay.querySelector(`.suggestion[data-index="${currentIndex}"]`);
+        if (!activeMark) {
+          // Find any group that contains this index
+          activeMark = Array.from(highlightOverlay.querySelectorAll('.suggestion'))
+            .find(el => (el.dataset.group || '').split(',').includes(String(currentIndex)));
+        }
        if (activeMark) {
            activeMark.classList.add('active');
            showPopoverFor(activeMark);
@@ -2491,6 +3544,12 @@ function updateNavigation() {
         correctionControls.style.display = 'none';
     }
 
+    const isCard = corrections.length > 0 && currentIndex > -1 && corrections[currentIndex].type === 'flashcard';
+    if (regenBtn)   regenBtn.style.display   = isCard ? 'inline-block' : 'none';
+    if (splitBtn)   splitBtn.style.display   = isCard ? 'inline-block' : 'none';
+    if (reverseBtn) reverseBtn.style.display = isCard ? 'inline-block' : 'none';
+    if (newFromHighlightBtn) newFromHighlightBtn.style.display = isCard ? 'inline-block' : 'none';
+
     // Handle Selection Actions
     if (selectionMode && selectedText) {
         selectionActions.style.display = 'flex';
@@ -2521,6 +3580,9 @@ function acceptCorrection(index) {
     });
     undoBtn.style.display = 'flex';
 
+    redoStack.length = 0;
+    if (redoBtn) redoBtn.style.display = 'none';
+
     acceptedFlashcards.push({ front, back });
     updateFlashcardsOutput();
 
@@ -2546,6 +3608,9 @@ function acceptCorrection(index) {
   });
   undoBtn.style.display = 'flex';
 
+  redoStack.length = 0;
+  if (redoBtn) redoBtn.style.display = 'none';
+
   let currentText = documentInput.value;
   currentText = currentText.substring(0, correction.position.start) +
                editedCorrectionText +
@@ -2565,23 +3630,34 @@ function acceptCorrection(index) {
 function rejectCorrection(index) {
   if (index < 0 || index >= corrections.length) return;
 
-  undoStack.push({
-      action: 'reject',
-      correction: { ...corrections[index] }, // Store a copy
-      index: index,
-      textBefore: documentInput.value // Text state is unchanged, but good for consistency
-  });
-  undoBtn.style.display = 'flex'; // Show the undo button
+  const item = corrections[index];
+  if (item.type === 'flashcard') {
+    // --- UNDO for rejecting a card suggestion ---
+    undoStack.push({
+      action: 'reject_card',
+      correction: { ...item },
+      index,
+      // textBefore is unchanged but safe to keep
+      textBefore: documentInput.value
+    });
+    undoBtn.style.display = 'flex';
 
-  corrections.splice(index, 1);
+    redoStack.length = 0;
+    if (redoBtn) redoBtn.style.display = 'none';
 
-  if (corrections.length === 0) {
-      resetState(); // This will unlock the editor
+    corrections.splice(index, 1);
+    if (corrections.length === 0) {
+      resetState();
       updateHighlightOverlay();
-  } else {
-    currentIndex = Math.min(index, corrections.length - 1);
-    updateActiveCorrection();
+    } else {
+      currentIndex = Math.min(index, corrections.length - 1);
+      updateActiveCorrection();
+    }
+    return;
   }
+
+  // Existing legacy (grammar/style) path...
+  // (your current code continues here)
 }
 
 // Modal functions
@@ -2649,6 +3725,7 @@ function processFile(file) {
     updateHighlightOverlay();
     closeFileModal();
     resetState();
+    adjustTextareaHeight();
   };
   reader.onerror = function() {
     alert('Error reading file');
