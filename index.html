@@ -20,6 +20,7 @@
   --suggestion-green: #22863a;
   --user-highlight: rgba(100, 149, 237, 0.3); /* Soft blue for user selection */
   --rule-style: #059669;
+  --sidebar-pad: 85px; /* dynamic via JS to prevent overlap */
 }
 
 * {
@@ -145,14 +146,14 @@ body {
   overflow-y: auto;
   overflow-x: hidden;
   padding: 2rem;
-  padding-left: 85px; /* Space for the sidebar */
+  padding-left: var(--sidebar-pad, 85px); /* Space for the sidebar (dynamic) */
   position: relative;
 }
 
 /* Responsive: ensure content doesn't overlap on narrow viewports */
 @media (max-width: 600px) {
   .main-content {
-    padding-left: 80px;
+    padding-left: var(--sidebar-pad, 80px);
   }
   
   .header {
@@ -341,6 +342,7 @@ body {
   background: #111;
 }
 
+/* Correction actions (left toolbar) */
 .correction-actions {
   display: flex;
   flex-direction: column;
@@ -349,7 +351,6 @@ body {
   padding-top: 8px;
   border-top: 1px solid var(--border-color);
 }
-
 .correction-actions .popover-btn {
   width: 100%;
   padding: 8px; /* Give them more vertical space */
@@ -1033,6 +1034,348 @@ body {
   font-weight: 600;
   color: #666;
 }
+
+/* --- Accepted Flashcards: right-aligned, compact, with tooltips --- */
+.flashcards-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-left: auto;
+}
+.flashcards-actions .icon-btn {
+  width: 32px;
+  height: 32px;
+  padding: 4px;
+  font-size: 1rem;
+}
+.flashcards-actions .icon-btn[aria-label] { position: relative; }
+.flashcards-actions .icon-btn[aria-label]::after {
+  content: attr(aria-label);
+  position: absolute;
+  top: -30px;
+  right: 0;
+  background: #111;
+  color: #fff;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  opacity: 0;
+  transform: translateY(5px) scale(.98);
+  transition: opacity .15s ease, transform .15s ease;
+  pointer-events: none;
+}
+.flashcards-actions .icon-btn[aria-label]:hover::after {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+/* --- Responsive left toolbar: icon-only on narrower widths --- */
+@media (max-width: 1100px) {
+  .header { width: 56px; }
+
+  .selection-actions .selection-btn {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    font-size: 0;         /* hide label text */
+    line-height: 36px;
+    text-align: center;
+    position: relative;
+  }
+  .selection-actions .selection-btn::before {
+    content: attr(data-short); /* single letter/icon */
+    font-size: 1rem;
+  }
+  .selection-actions .selection-btn::after {
+    content: attr(title);      /* full label on hover */
+    position: absolute;
+    left: 42px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #fff;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 12px;
+    color: #333;
+    white-space: nowrap;
+    display: none;
+    z-index: 100;
+  }
+  .selection-actions .selection-btn:hover::after { display: block; }
+
+  /* Keep nav arrows compact too */
+  .nav-arrow-group .nav-btn {
+    min-width: 36px;
+    width: 36px;
+  }
+
+  /* Avoid super-wide sidebar when edit buttons are visible */
+  .correction-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 6px;
+  }
+  .correction-actions .popover-btn {
+    padding: 0;
+    min-width: 36px;
+    width: 36px;
+    height: 32px;
+    font-size: 0; /* hide long labels */
+    line-height: 32px;
+    position: relative;
+  }
+  .correction-actions .popover-btn::before {
+    content: attr(data-short); /* icon/letter */
+    font-size: 0.95rem;
+  }
+  .correction-actions .popover-btn::after {
+    content: attr(title);
+    position: absolute;
+    left: 40px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #fff;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 12px;
+    color: #333;
+    white-space: nowrap;
+    display: none;
+    z-index: 100;
+  }
+  .correction-actions .popover-btn:hover::after { display: block; }
+}
+
+/* ===== Compact left pane (≤1000px) — square icons + fly-out labels on hover ===== */
+@media (max-width: 1100px) {
+
+  /* Never let buttons decide the sidebar width */
+  .header {
+    width: auto; /* keep natural, small width */
+  }
+
+  /* Flashcards (analysis) button: true icon-only square; no truncation */
+  .analysis-controls .analyze-btn {
+    width: 36px !important;
+    height: 36px;
+    padding: 0 !important;
+    font-size: 0 !important;          /* hide the full label text */
+    line-height: 36px;
+    text-align: center;
+    position: relative;
+    overflow: visible;                 /* allow fly-out */
+  }
+  .analysis-controls .analyze-btn::before {
+    content: attr(data-short);
+    font-size: 1rem;
+  }
+  .analysis-controls .analyze-btn::after {
+    content: attr(data-label);
+    position: absolute;
+    left: 42px;
+    top: 50%;
+    transform: translateY(-50%) translateX(4px);
+    background: rgba(255,255,255,0.98);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 0.85rem;
+    color: var(--text-color);
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    opacity: 0;
+    pointer-events: none;              /* no hover-capture */
+    transition: opacity .12s ease, transform .12s ease;
+    z-index: 1001;
+  }
+  .analysis-controls .analyze-btn:hover::after {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+  }
+
+  /* Arrow / Undo / Redo — fixed 36px squares, no flex stretching */
+  .nav-arrow-group {
+    display: flex;
+    flex-wrap: wrap;                   /* if 3–4 buttons, wrap to next row */
+    gap: 6px;
+  }
+  .nav-arrow-group .nav-btn {
+    flex: 0 0 36px;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    font-size: 1.2rem;                 /* arrows remain visible */
+    line-height: 36px;
+    text-align: center;
+    position: relative;
+    overflow: visible;
+  }
+  /* Fly-out labels for nav as well */
+  .nav-arrow-group .nav-btn::after {
+    content: attr(data-label);
+    position: absolute;
+    left: 42px;
+    top: 50%;
+    transform: translateY(-50%) translateX(4px);
+    background: rgba(255,255,255,0.98);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 12px;
+    color: var(--text-color);
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .12s ease, transform .12s ease;
+    z-index: 1001;
+  }
+  .nav-arrow-group .nav-btn:hover::after {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+  }
+
+  /* Correction actions (Accept / Reject / Regen / Split / Reverse / New) — square icons */
+  .correction-actions {
+    flex-direction: column;            /* vertical column, keep pane narrow */
+    gap: 6px;
+  }
+  .correction-actions .popover-btn {
+    width: 36px !important;            /* override earlier width:100% */
+    min-width: 36px;
+    height: 32px;
+    padding: 0 !important;
+    font-size: 0 !important;           /* hide long labels (prevents truncation) */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: visible;
+  }
+  .correction-actions .popover-btn::before {
+    content: attr(data-short);
+    font-size: 0.95rem;
+    line-height: 1;
+  }
+  .correction-actions .popover-btn::after {
+    content: attr(data-label);
+    position: absolute;
+    left: 42px;
+    top: 50%;
+    transform: translateY(-50%) translateX(4px);
+    background: rgba(255,255,255,0.98);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 12px;
+    color: var(--text-color);
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .12s ease, transform .12s ease;
+    z-index: 1001;
+  }
+  .correction-actions .popover-btn:hover::after {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+  }
+
+  /* Selection actions (Simplify / Proof / Make) — same behavior */
+  .selection-actions .selection-btn {
+    width: 36px !important;
+    height: 36px;
+    padding: 0 !important;
+    font-size: 0 !important;
+    line-height: 36px;
+    text-align: center;
+    position: relative;
+    overflow: visible;
+  }
+  .selection-actions .selection-btn::before {
+    content: attr(data-short);
+    font-size: 1rem;
+  }
+  .selection-actions .selection-btn::after {
+    content: attr(data-label);
+    position: absolute;
+    left: 42px;
+    top: 50%;
+    transform: translateY(-50%) translateX(4px);
+    background: rgba(255,255,255,0.98);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 12px;
+    color: var(--text-color);
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .12s ease, transform .12s ease;
+    z-index: 1001;
+  }
+  .selection-actions .selection-btn:hover::after {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+  }
+}
+
+/* Stack Undo/Redo below the arrow keys on small screens */
+@media (max-width: 1000px) {
+  .nav-arrow-group {
+    display: grid !important;
+    grid-template-columns: 36px 36px;  /* two square columns */
+    grid-auto-rows: 36px;              /* one square row per line */
+    gap: 6px;
+    align-items: center;
+    justify-items: center;
+  }
+
+  /* Ensure the buttons themselves don't try to flex/stretch */
+  .nav-arrow-group .nav-btn {
+    flex: initial !important;          /* override any flex: 1 */
+    width: 36px !important;
+    height: 36px !important;
+    padding: 0 !important;
+  }
+
+  /* Explicit placement: row / column */
+  #prevBtn { grid-row: 1; grid-column: 1; }
+  #nextBtn { grid-row: 1; grid-column: 2; }
+  #undoBtn { grid-row: 2; grid-column: 1; }
+  #redoBtn { grid-row: 2; grid-column: 2; }
+}
+/* Overlay sits above the textarea so chips stay clickable */
+.highlight-overlay {
+  z-index: 5;             /* was 1 */
+  pointer-events: none;   /* pass through by default */
+}
+
+/* Chips stay clickable even with overlay above */
+.highlight-overlay .suggestion {
+  pointer-events: auto;   /* allow clicking suggestions */
+}
+
+/* While user is dragging a selection, disable chip clicks so drag isn't interrupted */
+.sel-drag .highlight-overlay .suggestion {
+  pointer-events: none !important;
+}
+
+/* Do not let the ×N badge capture clicks or enter the selection text */
+.highlight-overlay .badge {
+  user-select: none;
+  pointer-events: none;
+}
+.popover-diff [contenteditable="true"]:focus {
+  background: #fffbe6;
+  outline: 1px solid #e0c040;
+}
 </style>
 </head>
 <body>
@@ -1050,7 +1393,9 @@ body {
 
   <!-- Wrapper for analysis button to add the line above -->
   <div class="analysis-controls">
-  <button class="selection-btn analyze-btn" id="analyzeFlashcardsBtn">Flashcards</button>
+  <button class="selection-btn analyze-btn" id="analyzeFlashcardsBtn"
+        title="Flashcards" aria-label="Flashcards"
+        data-short="F" data-label="Flashcards">Flashcards</button>
   </div>
 
 
@@ -1059,27 +1404,33 @@ body {
     <div class="nav-info" id="navInfo">0 / 0</div>
     <!-- Wrapper for side-by-side arrows -->
     <div class="nav-arrow-group">
-        <button class="nav-btn" id="prevBtn">←</button>
-        <button class="nav-btn" id="nextBtn">→</button>
-        <button class="nav-btn" id="undoBtn" title="Undo Last Action (⎌)" style="display: none;">⎌</button>
-        <button class="nav-btn" id="redoBtn" title="Redo Last Undo (⇧⌘Z / Ctrl+Shift+Z)" style="display: none;">⤻</button>
+        <button class="nav-btn" id="prevBtn" title="Previous" aria-label="Previous" data-label="Previous">←</button>
+        <button class="nav-btn" id="nextBtn" title="Next"     aria-label="Next"     data-label="Next">→</button>
+        <button class="nav-btn" id="undoBtn" title="Undo Last Action (⎌)" aria-label="Undo" data-label="Undo" style="display: none;">⎌</button>
+        <button class="nav-btn" id="redoBtn" title="Redo Last Undo (⇧⌘Z / Ctrl+Shift+Z)" aria-label="Redo" data-label="Redo" style="display: none;">⤻</button>
     </div>
     <!-- Accept/Reject buttons are now correctly inside this container -->
     <div class="correction-actions">
-        <button class="popover-btn reject" id="popoverRejectBtn">Reject</button>
-        <button class="popover-btn accept" id="popoverAcceptBtn">Accept</button>
-        <button class="popover-btn" id="regenBtn" title="Re-generate variants based on hint">↻ Re‑generate</button>
-        <button class="popover-btn" id="splitBtn" title="Split this card into exactly two atomic cards">Split (2)</button>
-        <button class="popover-btn" id="reverseBtn" title="Generate a reversed version of this card">Reverse</button>
-        <button class="popover-btn" id="newFromHighlightBtn" title="Create a NEW card using this highlight and your hint">＋ New from Highlight</button>
+        <button class="popover-btn reject" id="popoverRejectBtn"
+        data-short="✖" data-label="Reject" title="Reject card">Reject</button>
+        <button class="popover-btn accept" id="popoverAcceptBtn"
+                data-short="✓" data-label="Accept" title="Accept card">Accept</button>
+        <button class="popover-btn" id="regenBtn"
+                data-short="↻" data-label="Re‑generate" title="Re‑generate variants based on hint">↻ Re‑generate</button>
+        <button class="popover-btn" id="splitBtn"
+                data-short="⇄" data-label="Split (2)" title="Split this card into exactly two atomic cards">Split (2)</button>
+        <button class="popover-btn" id="reverseBtn"
+                data-short="⇅" data-label="Reverse" title="Generate a reversed version of this card">Reverse</button>
+        <button class="popover-btn" id="newFromHighlightBtn"
+                data-short="＋" data-label="New from Highlight" title="Create a NEW card using this highlight and your hint">＋ New from Highlight</button>
     </div>
   </div>
   
   <!-- Selection actions (visible when text selected) -->
   <div class="selection-actions" id="selectionActions" style="display: none;">
-    <button class="selection-btn" id="simplifyBtn">Simplify</button>
-    <button class="selection-btn" id="proofBtn">Check Proof</button>
-    <button class="selection-btn" id="makeCardBtn">Make Card</button>
+    <button class="selection-btn" id="simplifyBtn" title="Simplify"     data-short="S" data-label="Simplify">Simplify</button>
+    <button class="selection-btn" id="proofBtn"    title="Check Proof"  data-short="P" data-label="Check Proof">Check Proof</button>
+    <button class="selection-btn" id="makeCardBtn" title="Make Card"    data-short="C" data-label="Make Card">Make Card</button>
   </div>
 </div>
 
@@ -1093,7 +1444,13 @@ body {
     <button class="menu-item" id="helpBtn" style="background-color:#000000; color:#FFFFFF;">Help</button>
     <hr class="menu-divider">
     <button class="menu-item" id="newDocBtn">Load New Document</button>
+
+    <!-- Swap provider button -->
+    <button class="menu-item" id="swapAIProviderBtn">
+      AI Provider: <span id="currentProviderLabel">Gemini</span> (tap to switch)
+    </button>
     <hr class="menu-divider">
+
     <div class="menu-select-group">
     <select id="ruleSelect" style="display: none;">
       <!-- Options will be populated from rules.js -->
@@ -1144,7 +1501,7 @@ body {
     <div class="flashcards-header">
       <h3>Accepted Flashcards</h3>
       <div class="flashcards-actions">
-        <button class="nav-btn icon-btn" id="copyFlashcardsBtn" title="Copy Flashcards">
+        <button class="nav-btn icon-btn" id="copyFlashcardsBtn" title="Copy Flashcards" aria-label="Copy flashcards to clipboard">
           <!-- reuse the clipboard icon -->
           <svg class="icon-copy" xmlns="http://www.w3.org/2000/svg" width="16" height="16"
                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -1153,7 +1510,7 @@ body {
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
           </svg>
         </button>
-        <button class="nav-btn icon-btn" id="downloadFlashcardsBtn" title="Download flashcards (.txt)">
+        <button class="nav-btn icon-btn" id="downloadFlashcardsBtn" title="Download flashcards (.txt)" aria-label="Download flashcards as .txt file">
           <!-- reuse the download icon -->
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -1164,7 +1521,7 @@ body {
           </svg>
         </button>
         <!-- NEW: Download .md -->
-        <button class="nav-btn icon-btn" id="downloadFlashcardsMDBtn" title="Download as .md (Markdown)">
+        <button class="nav-btn icon-btn" id="downloadFlashcardsMDBtn" title="Download as .md (Markdown)" aria-label="Download flashcards as Markdown (.md)">
           <!-- identical icon is fine -->
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
               viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -1174,7 +1531,7 @@ body {
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
         </button>
-        <button class="nav-btn icon-btn" id="exportSettingsBtn" title="Export Settings">
+        <button class="nav-btn icon-btn" id="exportSettingsBtn" title="Export Settings" aria-label="Export settings">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
             viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
             stroke-linecap="round" stroke-linejoin="round">
@@ -1251,7 +1608,7 @@ body {
   <div class="summary-section">
     <label class="menu-toggle">
       <input type="checkbox" id="includeMetadataCheckbox">
-      <span>Include metadata/front‑matter block</span>
+      <span>Include metadata/front-matter block</span>
     </label>
 
     <label class="menu-toggle" style="margin-top:8px;">
@@ -1417,6 +1774,11 @@ let selectedText = '';
 let selectedRange = null;
 let selectionMode = false;
 let acceptedFlashcards = [];
+let cachedTags = [];              // holds latest generated tags
+let createdAtISO = '';            // first time we export with metadata
+let pendingAction = null; // 'regenerate' | 'split' | 'reverse'
+let isSelectingDrag = false;
+let overlayDragState = { started: false, target: null, downX: 0, downY: 0 };
 
 // DOM elements
 const undoBtn = document.getElementById('undoBtn');
@@ -1496,9 +1858,13 @@ const exportSaveBtn           = document.getElementById('exportSaveBtn');
 const genTagsNowBtn           = document.getElementById('genTagsNowBtn');
 const tagsPreview             = document.getElementById('tagsPreview');
 
-let cachedTags = [];              // holds latest generated tags
-let createdAtISO = '';            // first time we export with metadata
-let pendingAction = null; // 'regenerate' | 'split' | 'reverse'
+/* NEW: elements for provider quick toggle & consistency */
+const freeModelsCheckbox = document.getElementById('freeModelsCheckbox');
+const languageSelect     = document.getElementById('languageSelect');
+const swapAIProviderBtn  = document.getElementById('swapAIProviderBtn');
+const currentProviderLabel = document.getElementById('currentProviderLabel');
+
+
 
 // Hamburger elements
 const hamburgerBtn = document.getElementById('hamburgerBtn');
@@ -1517,6 +1883,30 @@ const popoverOriginal = document.getElementById('popoverOriginal');
 const popoverCorrected = document.getElementById('popoverCorrected');
 const popoverAcceptBtn = document.getElementById('popoverAcceptBtn');
 const popoverRejectBtn = document.getElementById('popoverRejectBtn');
+
+// Provider helpers (source of truth = localStorage 'provider')
+function getStoredProvider() {
+  return localStorage.getItem('provider') || 'gemini';
+}
+function applyProvider(newProvider) {
+  const current = getStoredProvider();
+  if (newProvider === current) {
+    // Just ensure UI is synced; don't flip.
+    if (providerSelect) providerSelect.value = newProvider;
+    toggleProviderFields(newProvider);
+    if (currentProviderLabel) currentProviderLabel.textContent = (newProvider === 'gemini' ? 'Gemini' : 'UltimateAI');
+    return;
+  }
+  localStorage.setItem('provider', newProvider);
+  if (providerSelect) providerSelect.value = newProvider;
+  toggleProviderFields(newProvider);
+  if (currentProviderLabel) currentProviderLabel.textContent = (newProvider === 'gemini' ? 'Gemini' : 'UltimateAI');
+  checkApiKey(); // surface modal if key missing for the chosen provider
+}
+function updateProviderLabelFromStorage() {
+  const p = getStoredProvider();
+  if (currentProviderLabel) currentProviderLabel.textContent = (p === 'gemini' ? 'Gemini' : 'UltimateAI');
+}
 
 // Hamburger menu events
 hamburgerBtn.addEventListener('click', openHamburgerMenu);
@@ -1541,6 +1931,25 @@ newDocBtn.addEventListener('click', () => {
   closeHamburgerMenu();
   showFileModal();
 });
+
+/* Respect user selection: the select is authoritative.
+   If the user chooses the same value, we do nothing. */
+if (providerSelect) {
+  providerSelect.addEventListener('change', () => {
+    const val = providerSelect.value;
+    applyProvider(val);
+  });
+}
+
+/* One-tap swap that never overrides a subsequent explicit selection.
+   It simply flips the stored provider and syncs UI. */
+if (swapAIProviderBtn) {
+  swapAIProviderBtn.addEventListener('click', () => {
+    const current = getStoredProvider();
+    const next    = current === 'gemini' ? 'ultimateai' : 'gemini';
+    applyProvider(next);
+  });
+}
 
 analyzeFlashcardsBtn.addEventListener('click', () => {
   closeHamburgerMenu();
@@ -1577,12 +1986,13 @@ if (redoBtn) redoBtn.addEventListener('click', handleRedo);
 function openHamburgerMenu() {
   hamburgerMenu.classList.add('open');
   menuOverlay.classList.add('visible');
+  updateProviderLabelFromStorage();
   
   // If current rule is a style, update style selector
   if (ruleSelect && ruleSelect.value && window.WRITING_RULES) {
     const currentRule = window.WRITING_RULES[ruleSelect.value];
     if (currentRule && (currentRule.type === 'flashcard' || currentRule.type === 'style') && styleSelect) {
-  styleSelect.value = ruleSelect.value;
+      styleSelect.value = ruleSelect.value;
     }
   }
 }
@@ -1591,6 +2001,61 @@ function closeHamburgerMenu() {
   hamburgerMenu.classList.remove('open');
   menuOverlay.classList.remove('visible');
 }
+
+// "Drag to select" guard
+documentInput.addEventListener('mousedown', (e) => {
+  // If we’re reviewing cards (corrections active), allow text selection to pass everywhere
+  if (corrections.length > 0) {
+    isSelectingDrag = true;
+    document.body.classList.add('sel-drag'); // disables chip clicks via CSS while dragging
+  }
+});
+
+window.addEventListener('mouseup', (e) => {
+  if (isSelectingDrag) {
+    isSelectingDrag = false;
+    document.body.classList.remove('sel-drag');
+  }
+  // If the textarea has focus, commit any selection that just finished
+  if (document.activeElement === documentInput) {
+    handleTextSelection();
+  }
+});
+
+// Keep selection state in sync even if mouseup occurs off the textarea
+document.addEventListener('selectionchange', () => {
+  if (document.activeElement === documentInput) {
+    handleTextSelection();
+  }
+});
+
+// Let drag-select start even if initial press lands on an overlay chip.
+// We capture the press, temporarily block chip hit-testing, and start a native
+// selection in the textarea at the same screen coordinates.
+highlightOverlay.addEventListener('mousedown', (e) => {
+  if (corrections.length === 0) return; // only matters in approval mode
+
+  overlayDragState.started = true;
+  overlayDragState.target  = e.target.closest('.suggestion'); // remember chip (if any)
+  overlayDragState.downX   = e.clientX;
+  overlayDragState.downY   = e.clientY;
+
+  // Enter drag mode: chips stop intercepting pointer events (CSS .sel-drag rule)
+  isSelectingDrag = true;
+  document.body.classList.add('sel-drag');
+
+  // Put focus into the textarea and start a native selection at the pointer
+  documentInput.focus();
+  const syntheticDown = new MouseEvent('mousedown', {
+    view: window, bubbles: true, cancelable: true,
+    clientX: e.clientX, clientY: e.clientY
+  });
+  documentInput.dispatchEvent(syntheticDown);
+
+  // Prevent the overlay press from activating the chip on mousedown
+  e.preventDefault();
+}, true); // NOTE: capture phase so we run before .suggestion's own click handler
+
 
 // Pure string formatters (no model calls)
 const EXPORTERS = {
@@ -1644,7 +2109,7 @@ function generateSelectionFlashcardPrompt(selection, context, rule) {
   const languageInstruction = getLanguageInstruction();
   const depth = (typeof depthSelect !== 'undefined' ? depthSelect.value : 'medium');
   const depthInstruction = (depth === 'shallow')
-    ? 'Return at most 2 cards for the selection.'
+    ? 'Return exactly one card for the selection.'
     : (depth === 'complete')
       ? 'Return 1–3 cards; prefer splitting into atomic cards if multiple ideas appear.'
       : 'Return 1–2 cards.';
@@ -1841,7 +2306,7 @@ async function handleMakeCardFromSelection() {
     loadingText.textContent = 'Generating card...';
 
     // Use the currently chosen domain rule if set
-    const chosen = window.WRITING_RULES[ruleSelect.value] || window.WRITING_RULES['flashcards_base'];
+    const chosen = window.WRITING_RULES[styleSelect?.value] || window.WRITING_RULES['flashcards'];
     const model = getModelForType('flashcard');
 
     const fullText = documentInput.value;
@@ -1890,10 +2355,10 @@ async function handleRegenerateCard(hint = '', replaceCurrent = true) {
   const card = corrections[currentIndex];
   if (!card || card.type !== 'flashcard') return;
 
-  const chosen = window.WRITING_RULES[ruleSelect.value] || window.WRITING_RULES['flashcards_base'];
+  const chosen = window.WRITING_RULES[styleSelect?.value] || window.WRITING_RULES['flashcards'];
   try {
     loadingOverlay.style.display = 'flex';
-    loadingText.textContent = 'Re‑generating…';
+    loadingText.textContent = 'Re-generating…';
 
     const model = getModelForType('flashcard'); // your existing model picker
     const prompt = generateRegenerateCardPrompt(card, hint, chosen); // from earlier step
@@ -1932,7 +2397,7 @@ async function handleRegenerateCard(hint = '', replaceCurrent = true) {
 
   } catch (err) {
     console.error(err);
-    alert('Re‑generate failed.');
+    alert('Re-generate failed.');
   } finally {
     loadingOverlay.style.display = 'none';
   }
@@ -1942,8 +2407,7 @@ async function handleSplitCard(userHint = '', useModal = false) {
   const card = corrections[currentIndex];
   if (!card || card.type !== 'flashcard') return;
 
-  const chosen = window.WRITING_RULES[ruleSelect.value] || window.WRITING_RULES['flashcards_base'];
-
+  const chosen = window.WRITING_RULES[styleSelect?.value] || window.WRITING_RULES['flashcards'];
   try {
     loadingOverlay.style.display = 'flex';
     loadingText.textContent = 'Splitting into two…';
@@ -2010,7 +2474,7 @@ async function handleReverseCard(userHint = '', useModal = false) {
     return;
   }
 
-  const chosen = window.WRITING_RULES[ruleSelect.value] || window.WRITING_RULES['flashcards_base'] || {};
+  const chosen = window.WRITING_RULES[styleSelect?.value] || window.WRITING_RULES['flashcards'] || {};
   const model  = getModelForType('flashcard'); // if you haven’t added flashcard model mapping yet, pick one explicitly
 
   try {
@@ -2087,7 +2551,7 @@ async function handleNewFromHighlight(hint = '') {
     return;
   }
 
-  const chosen = window.WRITING_RULES[ruleSelect.value] || window.WRITING_RULES['flashcards_base'] || {};
+  const chosen = window.WRITING_RULES[styleSelect?.value] || window.WRITING_RULES['flashcards'] || {};
   const model  = getModelForType('flashcard');
 
   try {
@@ -2184,12 +2648,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   checkApiKey();
 
   // Restore previous choice if set
-  const savedProvider = localStorage.getItem('provider') || 'gemini';
+  const savedProvider = getStoredProvider();
   if (providerSelect) providerSelect.value = savedProvider;
   toggleProviderFields(savedProvider);
+  updateProviderLabelFromStorage();
 
   if (ultimateModelInput) {
-    ultimateModelInput.value = localStorage.getItem('ultimateModel') || '';
+    ultimateModelInput.value = localStorage.getItem('ultimateModel') || ''; // don't auto-fill model
   }
 
   // Export prefs defaults and load
@@ -2210,11 +2675,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   loadRules();
 
-  // --- Export settings defaults ---
+  // --- Export settings defaults (stop autofill; use placeholders only) ---
   includeMetadataCheckbox.checked = JSON.parse(localStorage.getItem('exportIncludeMetadata') || 'false');
   generateTagsCheckbox.checked    = JSON.parse(localStorage.getItem('exportGenerateTags')   || 'false');
-  metaAuthorInput.value           = localStorage.getItem('exportAuthor') || 'wikipedia.org';
-  metaDeckInput.value             = localStorage.getItem('exportDeck')   || 'All Cards';
+
+  metaAuthorInput.value = '';
+  metaDeckInput.value   = '';
+  metaAuthorInput.placeholder = localStorage.getItem('exportAuthor') || 'wikipedia.org';
+  metaDeckInput.placeholder   = localStorage.getItem('exportDeck')   || 'All Cards';
+
   metadataTemplate.value          = localStorage.getItem('metadataTemplate') || metadataTemplate.value;
   createdAtISO                    = localStorage.getItem('exportCreatedAt') || '';
 
@@ -2247,34 +2716,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   );
   
   documentInput.value = `\\documentclass{article}
-\\begin{document}
+  \\begin{document}
 
-\\title{Sample Text: Load Your Own by Pasting Here or Use New Text Above}
-\\author{John Smith}
-\\maketitle
+  \\title{History of Deep Learning}
+  \\author{Wikipedia}
+  \\maketitle
 
-\\section{Introduction}
-This paper presents an comprehensive overview of recent advancements in natural language processing. We will discuss the various aproaches that has been developed in the past decade.
+  There are two types of artificial neural network (ANN): feedforward neural network (FNN) or multilayer perceptron (MLP) and recurrent neural networks (RNN). RNNs have cycles in their connectivity structure, FNNs don't. In the 1920s, Wilhelm Lenz and Ernst Ising created the Ising model which is essentially a non-learning RNN architecture consisting of neuron-like threshold elements. In 1972, Shun'ichi Amari made this architecture adaptive. His learning RNN was republished by John Hopfield in 1982. Other early recurrent neural networks were published by Kaoru Nakano in 1971. Already in 1948, Alan Turing produced work on "Intelligent Machinery" containing ideas related to artificial evolution and learning RNNs.
 
-The field have grown exponentially, with new models being released on a regular bases. Its important to understand these developments for anyone working in the field.
-
-\\section{Methodology}
-In this study, we examined 50 different papers published between 2020-2023. The data shows that transformer-based models is dominating the landscape.
-
-We conducted extensive experiments to validate our hypothesis. Each experiment were carefully designed to test specific aspects of model performance.
-
-\\section{Theorem}
-\\textbf{Theorem 1:} For any language model $L$ with vocabulary size $V$ and embedding dimension $d$, the computational complexity of self-attention is $O(n^2 \\cdot d)$ where $n$ is the sequence length.
-
-\\textbf{Proof:} Let us consider the attention mechanism. For each token in the sequence, we compute attention scores with all other tokens. This requires $n$ dot products for each of the $n$ tokens. Since each dot product operates on $d$-dimensional vectors, the total complexity is $n \\times n \\times d = O(n^2 \\cdot d)$. However, this assumes that the model processes all tokens simultaneously, which may not be true for all architectures.
-
-\\section{Conclusion}
-In conclusion, this study have shown that the landscape of NLP is rapidly evolving. Future work should focus on developing more efficent models.
-
-\\end{document}`;
+  Frank Rosenblatt (1958) proposed the perceptron, an MLP with 3 layers: an input layer, a hidden layer with randomized weights that did not learn, and an output layer. He later published a 1962 book that also introduced variants and computer experiments, including a version with four-layer perceptrons "with adaptive preterminal networks" where the last two layers have learned weights. The book cites an earlier network by R. D. Joseph (1960) "functionally equivalent to a variation of" this four-layer system. Should Joseph therefore be considered the originator of proper adaptive multilayer perceptrons with learning hidden units? Unfortunately, the learning algorithm was not a functional one, and fell into oblivion.
+  \\end{document}`;
   
   adjustTextareaHeight();
   updateHighlightOverlay();
+  syncSidebarPadding();
 
   // Sync scroll
   documentInput.addEventListener('scroll', () => {
@@ -2298,6 +2753,14 @@ In conclusion, this study have shown that the landscape of NLP is rapidly evolvi
   documentInput.addEventListener('mouseup', handleTextSelection);
   documentInput.addEventListener('keyup', handleTextSelection);
     updateNavigation();
+
+  // Observe left toolbar to keep padding in sync as buttons appear/disappear
+  const headerElForObserver = document.querySelector('.header');
+  if (headerElForObserver) {
+    const mo = new MutationObserver(syncSidebarPadding);
+    mo.observe(headerElForObserver, { attributes: true, childList: true, subtree: true });
+  }
+  window.addEventListener('resize', syncSidebarPadding);
 });
 
 // Event Listeners
@@ -2370,18 +2833,38 @@ document.addEventListener('keydown', (e) => {
     (apiKeyModal && apiKeyModal.style.display === 'block');
   if (anyModalOpen) return;
 
+  // While the user is selecting text, ignore accept/reject keystrokes
+  if (selectionMode) {
+    if (['Enter', 'Backspace', 'Delete'].includes(e.key)) {
+      e.preventDefault();
+      return;
+    }
+  }
+  
   // Check if we're editing the corrected text
   if (document.activeElement === popoverCorrected || document.activeElement === popoverOriginal) {
-    // Only allow normal typing, prevent our shortcuts
-    if (['Enter', 'Backspace', 'Delete', 'Escape', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-      e.stopPropagation();
-      if (e.key === 'Enter' || e.key === 'Escape') {
-        e.preventDefault();
-        popoverCorrected.blur(); // Exit editing
-      }
-    }
+  // Accept current card with Enter (don’t insert a newline)
+  if ((e.key === 'Enter') && (e.metaKey || e.ctrlKey)) {
+    e.preventDefault();
+    acceptCorrection(currentIndex);
     return;
   }
+  // Fast reject while editing: Cmd/Ctrl+Backspace or Cmd/Ctrl+Delete
+  if ((e.key === 'Backspace' || e.key === 'Delete') && (e.metaKey || e.ctrlKey)) {
+    e.preventDefault();
+    rejectCorrection(currentIndex);
+    return;
+  }
+  // Optional: Esc to leave the field without closing the popover
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    if (document.activeElement) document.activeElement.blur();
+    return;
+  }
+  // For all other keys, keep typing normal and do NOT trigger global shortcuts
+  return;
+  }
+
 
   // Handle Undo (⌘/Ctrl + Z) for our action stack
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
@@ -2479,24 +2962,19 @@ document.addEventListener('click', (e) => {
     }
 
     // This logic now only runs when NOT in correction mode.
-    // It's for any other potential popovers or future features.
-    // We'll also simplify it slightly as its main job was for corrections.
     if (currentIndex > -1 && !suggestionPopover.contains(e.target) && !e.target.closest('.suggestion')) {
         hidePopover();
-        // Resetting index here is important for when the user clicks away
-        // from a suggestion instead of using the nav buttons.
         currentIndex = -1; 
         updateNavigation();
     }
 });
 
 function checkApiKey() {
-  const provider = localStorage.getItem('provider') || 'gemini';
+  const provider = getStoredProvider();
   const hasGemini = typeof window.GEMINI !== 'undefined' && !!window.GEMINI;
   const storedGemini = localStorage.getItem('geminiKey') || '';
   const storedUltimate = localStorage.getItem('ultimateKey') || '';
 
-  // Fill fields if present
   if (providerSelect) providerSelect.value = provider;
   toggleProviderFields(provider);
 
@@ -2528,8 +3006,8 @@ function saveApiKey() {
       localStorage.setItem('geminiKey', key);
     }
   } else {
-    const uKey = ultimateKeyInput.value.trim();
-    const uModel = ultimateModelInput.value.trim();
+    const uKey = (document.getElementById('ultimateKeyInput').value || '').trim();
+    const uModel = (document.getElementById('ultimateModelInput').value || '').trim();
     if (uKey) localStorage.setItem('ultimateKey', uKey);
     if (uModel) localStorage.setItem('ultimateModel', uModel);
   }
@@ -2589,23 +3067,28 @@ function resetState() {
 }
 
 function handleTextSelection() {
-    const hasSelection = documentInput.selectionStart !== documentInput.selectionEnd;
-  
-    if (hasSelection) {
-        selectionMode = true;
-        selectedText = documentInput.value.substring(documentInput.selectionStart, documentInput.selectionEnd);
-        selectedRange = {
-            start: documentInput.selectionStart,
-            end: documentInput.selectionEnd
-        };
-    } else {
-        selectionMode = false;
-        selectedText = '';
-        selectedRange = null;
+  const focused = document.activeElement === documentInput;
+  const hasSelection = focused && (documentInput.selectionStart !== documentInput.selectionEnd);
+
+  if (hasSelection) {
+    selectionMode = true;
+    selectedText = documentInput.value.substring(documentInput.selectionStart, documentInput.selectionEnd);
+    selectedRange = { start: documentInput.selectionStart, end: documentInput.selectionEnd };
+    // Temporarily hide the accept/reject popover while the user is selecting
+    hidePopover();
+  } else {
+    selectionMode = false;
+    selectedText = '';
+    selectedRange = null;
+    // Restore the popover for the current card if we are in approval mode
+    if (corrections.length > 0 && currentIndex > -1) {
+      // This will re-show the popover for the active chip
+      updateActiveCorrection();
     }
-  
-    updateHighlightOverlay();
-    updateNavigation(); 
+  }
+
+  updateHighlightOverlay();
+  updateNavigation();
 }
 
 function clearUserSelection() {
@@ -2635,7 +3118,7 @@ function getLanguageInstruction() {
 }
 
 function getModelForType(type) {
-  const provider = localStorage.getItem('provider') || 'gemini';
+  const provider = getStoredProvider();
   if (provider === 'ultimateai') {
     // If user typed a specific UltimateAI model, prefer it for flashcards
     if (type === 'flashcard') {
@@ -3409,7 +3892,7 @@ async function handleAnalysis() {
 
     if (corrections.length > 0) {
       documentInput.readOnly = true;        // Prevent typing
-      documentInput.classList.add('locked'); // <-- LOCK MOUSE EVENTS
+      // documentInput.classList.add('locked'); // <-- LOCK MOUSE EVENTS
       currentIndex = 0;
       updateActiveCorrection();
     } else {
@@ -3602,64 +4085,73 @@ function closeSummaryModal() {
 
 function updateHighlightOverlay() {
   const currentText = documentInput.value;
-  const needOverlay = (selectionMode && selectedRange) || (corrections.length > 0);
+  const hasSelection = selectionMode && selectedRange;
+  const needOverlay = hasSelection || (corrections.length > 0);
 
   if (!needOverlay) {
-    // Overlay fully off
     highlightOverlay.innerHTML = '';
     highlightOverlay.style.display = 'none';
     document.getElementById('mainContent')?.classList.remove('overlay-active');
-
-    // Let the textarea size to its content in normal mode
     documentInput.style.height = 'auto';
     adjustTextareaHeight();
     return;
   }
 
-  // Overlay on
   highlightOverlay.style.display = 'block';
   document.getElementById('mainContent')?.classList.add('overlay-active');
 
-  // --- GROUP corrections by anchor (kept from your current version) ---
+  // 1) Group corrections by identical anchor
   const groupsMap = new Map();
   corrections.forEach((c, i) => {
-    if (!c.position) return;
+    if (!c?.position) return;
     const key = `${c.position.start}:${c.position.end}`;
     if (!groupsMap.has(key)) groupsMap.set(key, { start: c.position.start, end: c.position.end, idxs: [] });
     groupsMap.get(key).idxs.push(i);
   });
   const groups = Array.from(groupsMap.values()).sort((a,b) => (a.start - b.start) || (a.end - b.end));
 
+  // 2) Build render segments = { type:'selection'|'group', start, end, ... }
+  const segments = [];
+  if (hasSelection) {
+    segments.push({ type: 'selection', start: selectedRange.start, end: selectedRange.end });
+  }
+  for (const g of groups) {
+    // While selecting, suppress only chips that overlap the selection
+    if (hasSelection && g.start < selectedRange.end && g.end > selectedRange.start) continue;
+    segments.push({ type: 'group', start: g.start, end: g.end, idxs: g.idxs });
+  }
+
+  // 3) Sort by start (stable forward pass)
+  segments.sort((a, b) => (a.start - b.start) || (a.end - b.end));
+
+  // 4) Emit markup in one forward sweep
   let html = '';
   let lastPos = 0;
 
-  // User selection first
-  if (selectionMode && selectedRange) {
-    html += escapeHtml(currentText.substring(0, selectedRange.start));
-    html += `<mark class="user-selection">${escapeHtml(currentText.substring(selectedRange.start, selectedRange.end))}</mark>`;
-    lastPos = selectedRange.end;
+  for (const seg of segments) {
+    if (seg.start > lastPos) {
+      html += escapeHtml(currentText.substring(lastPos, seg.start));
+    }
+    if (seg.type === 'selection') {
+      html += `<mark class="user-selection">${escapeHtml(currentText.substring(seg.start, seg.end))}</mark>`;
+    } else {
+      const originalText = currentText.substring(seg.start, seg.end);
+      const firstIndex = seg.idxs[0];
+      const groupAttr  = seg.idxs.join(',');
+      html += `<mark class="suggestion" data-index="${firstIndex}" data-group="${groupAttr}">` +
+              `${escapeHtml(originalText)}${seg.idxs.length > 1 ? `<sup class="badge">×${seg.idxs.length}</sup>` : ''}` +
+              `</mark>`;
+    }
+    lastPos = seg.end;
+  }
+  if (lastPos < currentText.length) {
+    html += escapeHtml(currentText.substring(lastPos));
   }
 
-  // Grouped suggestions
-  for (const g of groups) {
-    if (selectionMode && selectedRange && g.start < selectedRange.end && g.end > selectedRange.start) continue;
-    html += escapeHtml(currentText.substring(lastPos, g.start));
-    const originalText = currentText.substring(g.start, g.end);
-    const firstIndex = g.idxs[0];
-    const groupAttr = g.idxs.join(',');
-    html += `<mark class="suggestion" data-index="${firstIndex}" data-group="${groupAttr}">${escapeHtml(originalText)}${
-      g.idxs.length > 1 ? `<sup class="badge">×${g.idxs.length}</sup>` : ''
-    }</mark>`;
-    lastPos = g.end;
-  }
-
-  html += escapeHtml(currentText.substring(lastPos));
   highlightOverlay.innerHTML = html;
-
-  // Match textarea height to overlay height while overlay is active
   documentInput.style.height = highlightOverlay.offsetHeight + 'px';
 
-  // Click to cycle within group
+  // 5) Click handlers for chips (unchanged)
   document.querySelectorAll('.suggestion').forEach(mark => {
     mark.addEventListener('click', (e) => {
       const group = (e.currentTarget.dataset.group || '')
@@ -3752,11 +4244,13 @@ function updateActiveCorrection() {
 }
 
 function showPopoverFor(element) {
+  if (selectionMode) return; // don't show the popover during a user text selection
   const correction = corrections[currentIndex];
   if (!correction) return;
 
   if (correction.type === 'flashcard') {
-    popoverExplanation.textContent = correction.explanation || 'Edit the card (Front/Back) and press Enter to accept or Backspace/Delete to reject.';
+    popoverExplanation.textContent = correction.explanation ||
+    'Edit the card (Front/Back) and press Enter to accept, or Backspace/Delete to reject.';
     popoverOriginal.setAttribute('contenteditable', 'true');
     popoverCorrected.setAttribute('contenteditable', 'true');
     popoverOriginal.textContent = correction.front || '';
@@ -3772,6 +4266,24 @@ function showPopoverFor(element) {
   suggestionPopover.classList.add('visible');
   element.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
+
+// --- Dynamic editing hint updates ---
+function updateEditingHint(isEditing) {
+  if (!popoverExplanation) return;
+  if (isEditing) {
+    popoverExplanation.textContent =
+      'While editing, press Ctrl/Cmd + Enter to accept, or Ctrl/Cmd + Backspace/Delete to reject.';
+  } else {
+    popoverExplanation.textContent =
+      'Edit the card (Front/Back) and press Ctrl/Cmd + Enter to accept, or Ctrl/Cmd + Backspace/Delete to reject.';
+  }
+}
+
+// When either field gains or loses focus, update the hint
+[popoverOriginal, popoverCorrected].forEach(el => {
+  el.addEventListener('focus', () => updateEditingHint(true));
+  el.addEventListener('blur',  () => updateEditingHint(false));
+});
 
 function hidePopover() {
     suggestionPopover.classList.remove('visible');
